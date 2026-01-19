@@ -1,9 +1,11 @@
-import { type ChangeEvent, type FormEvent, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
+import { Toast } from '../../components/ui/Toast'
+import { SELECTED_OFFER_STORAGE_KEY, type SelectedOfferPayload } from '../../lib/marketplace/offers'
 import { useRequisicionesStore, type NuevaRequisicion } from '../../lib/store/requisiciones'
 import { cn } from '../../lib/utils'
 
@@ -46,6 +48,20 @@ export function RequisicionesCrearPage() {
   const [notas, setNotas] = useState(prefill?.notas ?? '')
   const [archivo, setArchivo] = useState<File | null>(null)
   const [archivoError, setArchivoError] = useState('')
+  const [selectedOffer, setSelectedOffer] = useState<SelectedOfferPayload | null>(null)
+  const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'offer-selected')
+
+  const cantidadNumero = Number(cantidad)
+  const isCompareDisabled = !producto.trim() || !cantidadNumero || cantidadNumero <= 0
+  const compareQuery = useMemo(() => {
+    if (isCompareDisabled) return '/marketplace/comparar'
+    const params = new URLSearchParams({
+      query: producto.trim(),
+      qty: String(cantidadNumero),
+      unit: unidad,
+    })
+    return `/marketplace/comparar?${params.toString()}`
+  }, [cantidadNumero, isCompareDisabled, producto, unidad])
 
   const selectStyles =
     'w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm text-gray-800 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6]'
@@ -82,7 +98,6 @@ export function RequisicionesCrearPage() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const cantidadNumero = Number(cantidad)
     if (!producto || !cantidadNumero || cantidadNumero <= 0) {
       return
     }
@@ -93,7 +108,15 @@ export function RequisicionesCrearPage() {
       pza: 350,
     }
 
-    const total = cantidadNumero * unitRates[unidad]
+    const offerMatches =
+      selectedOffer &&
+      selectedOffer.producto === producto &&
+      selectedOffer.cantidad === cantidadNumero &&
+      selectedOffer.unidad === unidad
+
+    const total = offerMatches
+      ? selectedOffer.offer.precioTotal
+      : cantidadNumero * unitRates[unidad]
 
     addRequisicion({
       producto,
@@ -114,6 +137,54 @@ export function RequisicionesCrearPage() {
     navigate('/requisiciones/lista', { state: { toast: 'created' } })
   }
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const stored = window.localStorage.getItem(SELECTED_OFFER_STORAGE_KEY)
+    if (!stored) return
+
+    try {
+      const parsed = JSON.parse(stored) as SelectedOfferPayload
+      if (parsed && parsed.offer) {
+        setSelectedOffer(parsed)
+        setProducto(parsed.producto || '')
+        setCantidad(parsed.cantidad ? String(parsed.cantidad) : '')
+        setUnidad(parsed.unidad as (typeof unidades)[number])
+      }
+    } catch {
+      // noop
+    } finally {
+      window.localStorage.removeItem(SELECTED_OFFER_STORAGE_KEY)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (
+      selectedOffer &&
+      (selectedOffer.producto !== producto ||
+        selectedOffer.cantidad !== cantidadNumero ||
+        selectedOffer.unidad !== unidad)
+    ) {
+      setSelectedOffer(null)
+    }
+  }, [cantidadNumero, producto, selectedOffer, unidad])
+
+  useEffect(() => {
+    if (location.state?.toast === 'offer-selected') {
+      setToastVisible(true)
+      navigate(location.pathname, { replace: true })
+    }
+  }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    if (!toastVisible) return
+    const timer = window.setTimeout(() => setToastVisible(false), 3000)
+    return () => window.clearTimeout(timer)
+  }, [toastVisible])
+
+  const estimatedTotal = selectedOffer
+    ? selectedOffer.offer.precioTotal
+    : cantidadNumero * (unidad === 'kg' ? 180 : unidad === 'L' ? 220 : 350)
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -121,10 +192,22 @@ export function RequisicionesCrearPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Crear requisición</h1>
           <p className="text-sm text-gray-500">Completa los datos esenciales para iniciar el flujo.</p>
         </div>
-        <Button variant="secondary" onClick={() => navigate('/marketplace/comparar')}>
-          Comparar precios
-        </Button>
+        <div className="flex flex-col items-end gap-2">
+          <Button
+            variant="secondary"
+            disabled={isCompareDisabled}
+            className={isCompareDisabled ? 'cursor-not-allowed opacity-60' : ''}
+            onClick={() => navigate(compareQuery)}
+          >
+            Comparar precios
+          </Button>
+          {isCompareDisabled ? (
+            <p className="text-xs text-gray-500">Ingresa producto y cantidad para comparar.</p>
+          ) : null}
+        </div>
       </div>
+
+      {toastVisible ? <Toast variant="success">Oferta seleccionada</Toast> : null}
 
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -194,6 +277,40 @@ export function RequisicionesCrearPage() {
             </div>
           </div>
 
+          {selectedOffer ? (
+            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 text-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase text-gray-400">Oferta seleccionada</p>
+                  <p className="text-base font-semibold text-gray-900">
+                    {selectedOffer.offer.agroquimicaNombre}
+                  </p>
+                </div>
+                <Button type="button" variant="ghost" onClick={() => navigate(compareQuery)}>
+                  Cambiar
+                </Button>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-xs uppercase text-gray-400">Presentación</p>
+                  <p className="text-sm font-medium text-gray-900">{selectedOffer.offer.presentacion}</p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-gray-400">Precio unitario</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatCurrency(selectedOffer.offer.precioUnitario)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs uppercase text-gray-400">Precio total estimado</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {formatCurrency(selectedOffer.offer.precioTotal)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div>
             <label className="text-sm font-medium text-gray-700">Notas</label>
             <textarea
@@ -232,9 +349,11 @@ export function RequisicionesCrearPage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E5E7EB] bg-gray-50 px-4 py-3 text-sm">
-            <span className="text-gray-600">Estimado automático</span>
+            <span className="text-gray-600">
+              {selectedOffer ? 'Estimado con oferta' : 'Estimado automático'}
+            </span>
             <span className="font-semibold text-gray-900">
-              {formatCurrency(Number(cantidad || 0) * (unidad === 'kg' ? 180 : unidad === 'L' ? 220 : 350))}
+              {formatCurrency(estimatedTotal || 0)}
             </span>
           </div>
 
