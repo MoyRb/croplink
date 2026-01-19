@@ -1,4 +1,6 @@
-export const APP_NAME = 'CampConnect ERP'
+import { BRAND } from './brand'
+
+export const APP_NAME = BRAND.product
 
 export const NAV_SECTIONS = [
   {
