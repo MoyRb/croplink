@@ -21,7 +21,11 @@ export const NAV_SECTIONS = [
   },
   {
     label: 'Monitoreos',
-    to: '/monitoreos',
+    children: [
+      { label: 'Iniciar', to: '/monitoreos/iniciar' },
+      { label: 'Bitácora', to: '/monitoreos/bitacora' },
+      { label: 'Gráficas', to: '/monitoreos/graficas' },
+    ],
   },
   {
     label: 'Configuración',
