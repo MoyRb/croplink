@@ -1,6 +1,6 @@
-# React + TypeScript + Vite
+# Croplink ERP
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Croplink ERP es una plataforma para gestión agrícola construida con React, TypeScript y Vite.
 
 Currently, two official plugins are available:
 
