@@ -7,12 +7,9 @@ import { Card } from '../../components/ui/Card'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import { Toast } from '../../components/ui/Toast'
 import {
-  getEstadoPC,
   getPromedioDensidad,
   useMonitoreosStore,
-  type Hallazgo,
   type Monitoreo,
-  type MonitoreoDraft,
 } from '../../lib/store/monitoreos'
 import { cn } from '../../lib/utils'
 
@@ -36,7 +33,6 @@ export function MonitoreosBitacoraPage() {
   const [etapaFiltro, setEtapaFiltro] = useState('Todos')
   const [selected, setSelected] = useState<Monitoreo | null>(null)
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'saved')
-  const [infoToast, setInfoToast] = useState('')
 
   useEffect(() => {
     if (location.state?.toast === 'saved') {
@@ -50,12 +46,6 @@ export function MonitoreosBitacoraPage() {
     const timer = window.setTimeout(() => setToastVisible(false), 3000)
     return () => window.clearTimeout(timer)
   }, [toastVisible])
-
-  useEffect(() => {
-    if (!infoToast) return
-    const timer = window.setTimeout(() => setInfoToast(''), 2500)
-    return () => window.clearTimeout(timer)
-  }, [infoToast])
 
   const ranchoOpciones = useMemo(
     () => Array.from(new Set(monitoreos.map((monitoreo) => monitoreo.rancho))).sort(),
@@ -81,38 +71,6 @@ export function MonitoreosBitacoraPage() {
     })
   }, [cultivoFiltro, etapaFiltro, monitoreos, ranchoFiltro])
 
-  const handleDuplicate = (monitoreo: Monitoreo) => {
-    const prefill: MonitoreoDraft = {
-      ...monitoreo,
-      puntos: monitoreo.puntos.map((punto) => ({
-        ...punto,
-        densidadPlantas: String(punto.densidadPlantas),
-        notas: punto.notas ?? '',
-      })),
-    }
-
-    navigate('/monitoreos/iniciar', { state: { prefill } })
-  }
-
-  const handleExport = () => {
-    setInfoToast('Próximamente')
-  }
-
-  const renderHallazgos = (hallazgos: Hallazgo[]) => {
-    if (hallazgos.length === 0) {
-      return <span className="text-xs text-gray-400">Sin hallazgos</span>
-    }
-    return (
-      <div className="flex flex-wrap gap-2">
-        {hallazgos.map((hallazgo, index) => (
-          <Badge key={`${hallazgo.categoria}-${index}`} className="bg-gray-100 text-gray-700">
-            {hallazgo.categoria} · {hallazgo.tipoEvaluacion}
-          </Badge>
-        ))}
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -124,7 +82,6 @@ export function MonitoreosBitacoraPage() {
       </div>
 
       {toastVisible ? <Toast variant="success">Monitoreo guardado</Toast> : null}
-      {infoToast ? <Toast variant="info">{infoToast}</Toast> : null}
 
       <Card>
         <div className="flex flex-col gap-4">
@@ -194,14 +151,13 @@ export function MonitoreosBitacoraPage() {
                 <TableHead>Cultivo</TableHead>
                 <TableHead>Sector</TableHead>
                 <TableHead>Etapa</TableHead>
-                <TableHead>Promedio</TableHead>
-                <TableHead>Estado PC</TableHead>
+                <TableHead>Densidad promedio</TableHead>
+                <TableHead>Hallazgos</TableHead>
               </tr>
             </thead>
             <tbody>
               {filtered.map((row) => {
                 const promedio = getPromedioDensidad(row.puntos)
-                const estado = getEstadoPC(promedio, row.umbralPC)
                 return (
                   <TableRow
                     key={row.id}
@@ -226,17 +182,7 @@ export function MonitoreosBitacoraPage() {
                       </Badge>
                     </TableCell>
                     <TableCell>{formatNumber(promedio)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          estado === 'Arriba del umbral'
-                            ? 'bg-[#DBFAE6] text-[#0B6B2A]'
-                            : 'bg-red-100 text-red-700'
-                        }
-                      >
-                        {estado}
-                      </Badge>
-                    </TableCell>
+                    <TableCell>{row.hallazgos.length}</TableCell>
                   </TableRow>
                 )
               })}
@@ -314,10 +260,6 @@ export function MonitoreosBitacoraPage() {
                   {selected.numSector} · Válvula {selected.numValvula}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">Tipo de sector</span>
-                <span className="font-medium text-gray-900">{selected.tipoSector}</span>
-              </div>
             </div>
 
             <div className="mt-6 rounded-2xl border border-[#E5E7EB] bg-[#F5F5F5] p-4">
@@ -327,53 +269,58 @@ export function MonitoreosBitacoraPage() {
                   {formatNumber(getPromedioDensidad(selected.puntos))}
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span className="text-gray-500">Umbral</span>
-                <span className="font-semibold text-gray-900">{selected.umbralPC}</span>
-              </div>
-              <div className="mt-2 flex items-center justify-between text-sm">
-                <span className="text-gray-500">Estado PC</span>
-                <Badge
-                  className={
-                    getEstadoPC(getPromedioDensidad(selected.puntos), selected.umbralPC) ===
-                    'Arriba del umbral'
-                      ? 'bg-[#DBFAE6] text-[#0B6B2A]'
-                      : 'bg-red-100 text-red-700'
-                  }
-                >
-                  {getEstadoPC(getPromedioDensidad(selected.puntos), selected.umbralPC)}
-                </Badge>
-              </div>
+              {selected.umbralPC !== null ? (
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Umbral PC</span>
+                  <span className="font-semibold text-gray-900">{selected.umbralPC}</span>
+                </div>
+              ) : null}
+              {selected.umbralPROM !== null ? (
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className="text-gray-500">Umbral PROM</span>
+                  <span className="font-semibold text-gray-900">{selected.umbralPROM}</span>
+                </div>
+              ) : null}
             </div>
 
             <div className="mt-6 space-y-4">
               <h4 className="text-sm font-semibold text-gray-900">Puntos evaluados</h4>
-              {selected.puntos.map((punto) => (
-                <div key={punto.index} className="rounded-2xl border border-[#E5E7EB] p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-900">Punto {punto.index}</span>
-                    <span className="text-sm text-gray-500">
-                      Densidad: {formatNumber(punto.densidadPlantas)}
-                    </span>
+              <div className="grid gap-3">
+                {selected.puntos.map((punto) => (
+                  <div key={punto.index} className="rounded-2xl border border-[#E5E7EB] p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-900">Punto {punto.index}</span>
+                      <span className="text-sm text-gray-500">
+                        Conteo: {formatNumber(punto.conteoPorMetroLineal)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="mt-2">{renderHallazgos(punto.hallazgos)}</div>
-                  {punto.notas ? (
-                    <p className="mt-2 rounded-2xl bg-gray-50 px-3 py-2 text-xs text-gray-600">
-                      {punto.notas}
-                    </p>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-900">Hallazgos</h4>
+              {selected.hallazgos.length === 0 ? (
+                <p className="text-sm text-gray-400">Sin hallazgos registrados.</p>
+              ) : null}
+              {selected.hallazgos.map((hallazgo, index) => (
+                <div key={`${hallazgo.tipo}-${index}`} className="rounded-2xl border border-[#E5E7EB] p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold text-gray-900">{hallazgo.tipo}</span>
+                    <Badge className="bg-gray-100 text-gray-700">{hallazgo.severidad}</Badge>
+                  </div>
+                  {hallazgo.nota ? (
+                    <p className="mt-2 text-xs text-gray-500">{hallazgo.nota}</p>
                   ) : null}
                 </div>
               ))}
             </div>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button variant="secondary" onClick={() => handleDuplicate(selected)}>
-                Duplicar
+              <Button variant="secondary" onClick={() => setSelected(null)}>
+                Cerrar detalle
               </Button>
-              <Button variant="secondary" onClick={handleExport}>
-                Exportar
-              </Button>
-              <Button onClick={() => setSelected(null)}>Cerrar detalle</Button>
             </div>
           </aside>
         </div>
