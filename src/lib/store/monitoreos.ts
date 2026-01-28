@@ -1,31 +1,27 @@
 import { useEffect, useMemo, useState } from 'react'
 
-export type CondicionMeteorologica = 'Soleado' | 'Nublado' | 'Lluvia' | 'Viento' | 'Mixto'
+export type CondicionMeteorologica = 'Soleado' | 'Nublado' | 'Lluvia' | 'Viento' | 'Otro'
 
 export type EtapaFenologica = 'Vegetativa' | 'Floración' | 'Fructificación' | 'Cosecha' | 'Poda'
 
-export type TipoSector = 'Túnel' | 'Campo abierto'
-
-export type TipoEvaluacion = 'Plantas' | 'CCT'
-
-export type HallazgoCategoria =
+export type HallazgoTipo =
   | 'Plaga'
   | 'Enfermedad'
   | 'Insectos benéficos'
   | 'Desarrollo'
   | 'Nutrición'
-  | 'PC'
+
+export type HallazgoSeveridad = 'Baja' | 'Media' | 'Alta'
 
 export type Hallazgo = {
-  categoria: HallazgoCategoria
-  tipoEvaluacion: TipoEvaluacion
+  tipo: HallazgoTipo
+  nota: string
+  severidad: HallazgoSeveridad
 }
 
 export type Punto = {
   index: number
-  densidadPlantas: number
-  hallazgos: Hallazgo[]
-  notas?: string
+  conteoPorMetroLineal: number
 }
 
 export type Monitoreo = {
@@ -39,17 +35,33 @@ export type Monitoreo = {
   etapaFenologica: EtapaFenologica
   numSector: number
   numValvula: number
-  tipoSector: TipoSector
-  umbralPC: number
+  umbralPC: number | null
+  umbralPROM: number | null
   puntos: Punto[]
+  hallazgos: Hallazgo[]
 }
 
-export type PuntoDraft = Omit<Punto, 'densidadPlantas'> & {
-  densidadPlantas: string
+export type PuntoDraft = Omit<Punto, 'conteoPorMetroLineal'> & {
+  conteoPorMetroLineal: string
 }
 
-export type MonitoreoDraft = Omit<Monitoreo, 'puntos'> & {
+export type MonitoreoDraft = Omit<
+  Monitoreo,
+  'puntos' |
+    'humedadRelativa' |
+    'temperatura' |
+    'numSector' |
+    'numValvula' |
+    'umbralPC' |
+    'umbralPROM'
+> & {
   puntos: PuntoDraft[]
+  humedadRelativa: string
+  temperatura: string
+  numSector: string
+  numValvula: string
+  umbralPC: string
+  umbralPROM: string
 }
 
 export type NuevoMonitoreo = Omit<Monitoreo, 'id' | 'createdAt'> & {
@@ -60,18 +72,16 @@ export type NuevoMonitoreo = Omit<Monitoreo, 'id' | 'createdAt'> & {
 const STORAGE_KEY = 'croplink.monitoreos'
 const DRAFT_KEY = 'croplink.monitoreos.draft'
 
-const buildPuntos = (densidades: number[], hallazgos: Hallazgo[][] = []): Punto[] =>
-  densidades.map((densidad, index) => ({
+const buildPuntos = (conteos: number[]): Punto[] =>
+  conteos.map((conteo, index) => ({
     index: index + 1,
-    densidadPlantas: densidad,
-    hallazgos: hallazgos[index] ?? [],
-    notas: index % 2 === 0 ? 'Revisión sin observaciones mayores.' : 'Zona con variación ligera.',
+    conteoPorMetroLineal: conteo,
   }))
 
 const monitoreosIniciales: Monitoreo[] = [
   {
-    id: 'MON-1001',
-    createdAt: '2024-07-12T09:10:00.000Z',
+    id: 'MON-2001',
+    createdAt: '2024-08-18T09:10:00.000Z',
     rancho: 'La Esperanza',
     cultivo: 'Tomate Saladette',
     humedadRelativa: 62,
@@ -80,19 +90,17 @@ const monitoreosIniciales: Monitoreo[] = [
     etapaFenologica: 'Vegetativa',
     numSector: 3,
     numValvula: 12,
-    tipoSector: 'Túnel',
     umbralPC: 7.5,
-    puntos: buildPuntos([7, 6.8, 7.2, 7.1, 7.4, 7.6, 7.3, 7.5], [
-      [{ categoria: 'Plaga', tipoEvaluacion: 'Plantas' }],
-      [{ categoria: 'Insectos benéficos', tipoEvaluacion: 'Plantas' }],
-      [{ categoria: 'Nutrición', tipoEvaluacion: 'CCT' }],
-      [{ categoria: 'Desarrollo', tipoEvaluacion: 'Plantas' }],
-      [{ categoria: 'Enfermedad', tipoEvaluacion: 'Plantas' }],
-    ]),
+    umbralPROM: 6.8,
+    puntos: buildPuntos([7, 6.8, 7.2, 7.1, 7.4, 7.6, 7.3, 7.5]),
+    hallazgos: [
+      { tipo: 'Plaga', nota: 'Revisión con presencia leve en hilera 4.', severidad: 'Media' },
+      { tipo: 'Nutrición', nota: 'Falta de uniformidad en hojas nuevas.', severidad: 'Baja' },
+    ],
   },
   {
-    id: 'MON-1002',
-    createdAt: '2024-07-15T13:40:00.000Z',
+    id: 'MON-2002',
+    createdAt: '2024-08-21T13:40:00.000Z',
     rancho: 'San Miguel',
     cultivo: 'Pimiento Morrón',
     humedadRelativa: 68,
@@ -101,14 +109,13 @@ const monitoreosIniciales: Monitoreo[] = [
     etapaFenologica: 'Fructificación',
     numSector: 1,
     numValvula: 4,
-    tipoSector: 'Campo abierto',
-    umbralPC: 6.2,
-    puntos: buildPuntos([5.8, 6, 6.1, 6.4, 5.9, 6.3, 6.2, 6.1], [
-      [{ categoria: 'Nutrición', tipoEvaluacion: 'CCT' }],
-      [{ categoria: 'Plaga', tipoEvaluacion: 'Plantas' }],
-      [{ categoria: 'Enfermedad', tipoEvaluacion: 'Plantas' }],
-      [{ categoria: 'Desarrollo', tipoEvaluacion: 'Plantas' }],
-    ]),
+    umbralPC: null,
+    umbralPROM: null,
+    puntos: buildPuntos([5.8, 6, 6.1, 6.4, 5.9, 6.3, 6.2, 6.1]),
+    hallazgos: [
+      { tipo: 'Insectos benéficos', nota: 'Alta presencia de crisopas.', severidad: 'Baja' },
+      { tipo: 'Desarrollo', nota: 'Desfase ligero entre líneas.', severidad: 'Media' },
+    ],
   },
 ]
 
@@ -160,12 +167,9 @@ export const getNextMonitoreoId = (monitoreos: Monitoreo[]) => {
 
 export const getPromedioDensidad = (puntos: Punto[]) => {
   if (puntos.length === 0) return 0
-  const total = puntos.reduce((acc, punto) => acc + punto.densidadPlantas, 0)
+  const total = puntos.reduce((acc, punto) => acc + punto.conteoPorMetroLineal, 0)
   return total / puntos.length
 }
-
-export const getEstadoPC = (promedio: number, umbral: number) =>
-  promedio >= umbral ? 'Arriba del umbral' : 'Debajo del umbral'
 
 export function useMonitoreosStore() {
   const [monitoreos, setMonitoreos] = useState<Monitoreo[]>(() => getStoredMonitoreos())
@@ -187,11 +191,12 @@ export function useMonitoreosStore() {
 
   const stats = useMemo(() => {
     const total = monitoreos.length
-    const arribaUmbral = monitoreos.filter((monitoreo) => {
-      const promedio = getPromedioDensidad(monitoreo.puntos)
-      return promedio >= monitoreo.umbralPC
-    }).length
-    return { total, arribaUmbral }
+    const promedioGeneral =
+      total === 0
+        ? 0
+        : monitoreos.reduce((acc, monitoreo) => acc + getPromedioDensidad(monitoreo.puntos), 0) /
+          total
+    return { total, promedioGeneral }
   }, [monitoreos])
 
   const addMonitoreo = (data: NuevoMonitoreo) => {
@@ -207,9 +212,10 @@ export function useMonitoreosStore() {
         etapaFenologica: data.etapaFenologica,
         numSector: data.numSector,
         numValvula: data.numValvula,
-        tipoSector: data.tipoSector,
         umbralPC: data.umbralPC,
+        umbralPROM: data.umbralPROM,
         puntos: data.puntos,
+        hallazgos: data.hallazgos,
       }
 
       return [nuevo, ...prev]
