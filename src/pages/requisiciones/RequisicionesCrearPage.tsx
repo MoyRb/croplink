@@ -6,12 +6,14 @@ import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Toast } from '../../components/ui/Toast'
 import { SELECTED_OFFER_STORAGE_KEY, type SelectedOfferPayload } from '../../lib/marketplace/offers'
+import { getPlaguicidasCrops, searchPlaguicidas, type PlaguicidaUseCase } from '../../lib/plaguicidas'
 import { useRequisicionesStore, type NuevaRequisicion } from '../../lib/store/requisiciones'
 import { cn } from '../../lib/utils'
 
 const unidades = ['kg', 'L', 'pza'] as const
 const centrosCosto = ['Operaciones', 'Compras', 'Mantenimiento', 'Campo'] as const
 const prioridades = ['Baja', 'Media', 'Alta'] as const
+const tiposPlaga = ['Plaga', 'Enfermedad'] as const
 
 const maxFileSize = 10 * 1024 * 1024
 
@@ -50,6 +52,10 @@ export function RequisicionesCrearPage() {
   const [archivoError, setArchivoError] = useState('')
   const [selectedOffer, setSelectedOffer] = useState<SelectedOfferPayload | null>(null)
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'offer-selected')
+  const [cultivo, setCultivo] = useState('')
+  const [tipoPlaga, setTipoPlaga] = useState<(typeof tiposPlaga)[number] | ''>('')
+  const [busquedaPlaga, setBusquedaPlaga] = useState('')
+  const [itemsSugeridos, setItemsSugeridos] = useState<PlaguicidaUseCase[]>([])
 
   const cantidadNumero = Number(cantidad)
   const isCompareDisabled = !producto.trim() || !cantidadNumero || cantidadNumero <= 0
@@ -65,6 +71,48 @@ export function RequisicionesCrearPage() {
 
   const selectStyles =
     'w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm text-gray-800 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6]'
+
+  const cultivos = useMemo(() => getPlaguicidasCrops(), [])
+
+  const resultadosPlaguicidas = useMemo(
+    () =>
+      searchPlaguicidas({
+        crop: cultivo || undefined,
+        type: tipoPlaga || undefined,
+        search: busquedaPlaga,
+        limit: 15,
+      }),
+    [busquedaPlaga, cultivo, tipoPlaga],
+  )
+
+  const handleAgregarItem = (item: PlaguicidaUseCase) => {
+    setItemsSugeridos((prev) => {
+      if (prev.some((existing) => existing.id === item.id)) {
+        return prev
+      }
+      return [...prev, item]
+    })
+  }
+
+  const handleRemoveItem = (itemId: string) => {
+    setItemsSugeridos((prev) => prev.filter((item) => item.id !== itemId))
+  }
+
+  const notasConItems = useMemo(() => {
+    if (itemsSugeridos.length === 0) {
+      return notas.trim()
+    }
+
+    const detalleItems = itemsSugeridos.map(
+      (item, index) =>
+        `${index + 1}. ${item.commercial_name} (${item.active_ingredient}) - ${item.target_common}. ` +
+        `Dosis: ${item.dose}. IS: ${item.safety_interval}. Reentrada: ${item.reentry_period}.`,
+    )
+
+    return [notas.trim(), 'Items sugeridos (asistente fitosanitario):', ...detalleItems]
+      .filter(Boolean)
+      .join('\n')
+  }, [itemsSugeridos, notas])
 
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -124,7 +172,7 @@ export function RequisicionesCrearPage() {
       unidad,
       centroCosto,
       prioridad,
-      notas,
+      notas: notasConItems || undefined,
       total,
       adjunto: archivo
         ? {
@@ -310,6 +358,142 @@ export function RequisicionesCrearPage() {
               </div>
             </div>
           ) : null}
+
+          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase text-gray-400">Asistente fitosanitario</p>
+                <p className="text-sm text-gray-600">
+                  Opcional. Filtra por cultivo y busca plagas o enfermedades para sugerir productos.
+                </p>
+              </div>
+              <span className="rounded-full bg-[#F3F4F6] px-3 py-1 text-xs font-medium text-gray-600">
+                Dataset local
+              </span>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Cultivo</label>
+                <select
+                  className={cn(selectStyles, 'mt-2')}
+                  value={cultivo}
+                  onChange={(event) => setCultivo(event.target.value)}
+                >
+                  <option value="">Todos</option>
+                  {cultivos.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Tipo</label>
+                <select
+                  className={cn(selectStyles, 'mt-2')}
+                  value={tipoPlaga}
+                  onChange={(event) => setTipoPlaga(event.target.value as (typeof tiposPlaga)[number] | '')}
+                >
+                  <option value="">Todos</option>
+                  {tiposPlaga.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700">Buscar plaga/enfermedad</label>
+                <Input
+                  className="mt-2"
+                  placeholder="Ej. araña roja, mildiu"
+                  value={busquedaPlaga}
+                  onChange={(event) => setBusquedaPlaga(event.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="mt-4 overflow-hidden rounded-2xl border border-[#E5E7EB]">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-gray-50 text-xs uppercase text-gray-400">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">Producto</th>
+                    <th className="px-4 py-3 font-semibold">Ingrediente activo</th>
+                    <th className="px-4 py-3 font-semibold">IRAC/FRAC/HRAC</th>
+                    <th className="px-4 py-3 font-semibold">Intervalo seguridad</th>
+                    <th className="px-4 py-3 font-semibold">Reentrada</th>
+                    <th className="px-4 py-3 font-semibold">Dosis</th>
+                    <th className="px-4 py-3 font-semibold text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {resultadosPlaguicidas.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-6 text-center text-sm text-gray-500" colSpan={7}>
+                        No encontramos resultados con esos filtros. Ajusta el cultivo o la búsqueda.
+                      </td>
+                    </tr>
+                  ) : (
+                    resultadosPlaguicidas.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-gray-900">{item.commercial_name}</span>
+                            {item.market === 'USA' ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                                USA
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="text-xs text-gray-500">
+                            {item.target_common} · {item.crop}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 text-gray-700">{item.active_ingredient}</td>
+                        <td className="px-4 py-3 text-gray-700">{item.resistance_class}</td>
+                        <td className="px-4 py-3 text-gray-700">{item.safety_interval}</td>
+                        <td className="px-4 py-3 text-gray-700">{item.reentry_period}</td>
+                        <td className="px-4 py-3 text-gray-700">{item.dose}</td>
+                        <td className="px-4 py-3 text-right">
+                          <Button type="button" variant="secondary" onClick={() => handleAgregarItem(item)}>
+                            Agregar a requisición
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {itemsSugeridos.length > 0 ? (
+              <div className="mt-4 rounded-2xl border border-[#E5E7EB] bg-gray-50 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-gray-900">Items sugeridos en requisición</p>
+                  <span className="text-xs text-gray-500">{itemsSugeridos.length} agregado(s)</span>
+                </div>
+                <div className="mt-3 space-y-3">
+                  {itemsSugeridos.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white px-4 py-3 text-sm"
+                    >
+                      <div>
+                        <p className="font-medium text-gray-900">{item.commercial_name}</p>
+                        <p className="text-xs text-gray-500">
+                          {item.active_ingredient} · {item.dose}
+                        </p>
+                      </div>
+                      <Button type="button" variant="ghost" onClick={() => handleRemoveItem(item.id)}>
+                        Quitar
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           <div>
             <label className="text-sm font-medium text-gray-700">Notas</label>
