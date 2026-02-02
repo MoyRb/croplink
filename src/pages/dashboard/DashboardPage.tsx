@@ -1,9 +1,30 @@
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
+import { Toast } from '../../components/ui/Toast'
 
 export function DashboardPage() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'unauthorized')
+
+  useEffect(() => {
+    if (location.state?.toast === 'unauthorized') {
+      setToastVisible(true)
+      navigate(location.pathname, { replace: true })
+    }
+  }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    if (!toastVisible) return
+    const timer = window.setTimeout(() => setToastVisible(false), 3000)
+    return () => window.clearTimeout(timer)
+  }, [toastVisible])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -13,6 +34,8 @@ export function DashboardPage() {
         </div>
         <Button>Crear requisición</Button>
       </div>
+
+      {toastVisible ? <Toast>No autorizado</Toast> : null}
 
       <div className="grid gap-6 md:grid-cols-3">
         {[
