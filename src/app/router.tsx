@@ -15,7 +15,12 @@ import { NominaPeriodosPage } from '../pages/nomina/NominaPeriodosPage'
 import { NominaReportesPage } from '../pages/nomina/NominaReportesPage'
 import { RequisicionesCrearPage } from '../pages/requisiciones/RequisicionesCrearPage'
 import { RequisicionesListaPage } from '../pages/requisiciones/RequisicionesListaPage'
-import { NOMINA_ALLOWED_ROLES } from '../lib/auth/roles'
+import { ActivosDetallePage } from '../pages/activos/ActivosDetallePage'
+import { ActivosListaPage } from '../pages/activos/ActivosListaPage'
+import { ActivosMantenimientosPage } from '../pages/activos/ActivosMantenimientosPage'
+import { ActivosNuevoPage } from '../pages/activos/ActivosNuevoPage'
+import { ActivosReportesPage } from '../pages/activos/ActivosReportesPage'
+import { ACTIVOS_ALLOWED_ROLES, NOMINA_ALLOWED_ROLES } from '../lib/auth/roles'
 
 export function AppRouter() {
   return (
@@ -35,6 +40,46 @@ export function AppRouter() {
         <Route path="/marketplace/comparar" element={<MarketplaceCompararPage />} />
         <Route path="/requisiciones/aprobaciones" element={<RequisicionesListaPage />} />
         <Route path="/inventario" element={<DashboardPage />} />
+        <Route
+          path="/activos/lista"
+          element={
+            <RequireRole allowed={ACTIVOS_ALLOWED_ROLES}>
+              <ActivosListaPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/activos/nuevo"
+          element={
+            <RequireRole allowed={ACTIVOS_ALLOWED_ROLES}>
+              <ActivosNuevoPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/activos/:id"
+          element={
+            <RequireRole allowed={ACTIVOS_ALLOWED_ROLES}>
+              <ActivosDetallePage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/activos/:id/mantenimientos"
+          element={
+            <RequireRole allowed={ACTIVOS_ALLOWED_ROLES}>
+              <ActivosMantenimientosPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/activos/reportes"
+          element={
+            <RequireRole allowed={ACTIVOS_ALLOWED_ROLES}>
+              <ActivosReportesPage />
+            </RequireRole>
+          }
+        />
         <Route path="/monitoreos" element={<Navigate to="/monitoreos/bitacora" replace />} />
         <Route path="/monitoreos/iniciar" element={<MonitoreosIniciarPage />} />
         <Route path="/monitoreos/bitacora" element={<MonitoreosBitacoraPage />} />
