@@ -5,6 +5,11 @@ export type UserRole =
   | 'AGROQUIMICA_VENTAS'
 
 export const NOMINA_ALLOWED_ROLES: UserRole[] = ['AGRICOLA_PRODUCTOR', 'AGROQUIMICA_ADMIN']
+export const ACTIVOS_ALLOWED_ROLES: UserRole[] = [
+  'AGRICOLA_PRODUCTOR',
+  'AGROQUIMICA_ADMIN',
+  'AGROQUIMICA_VENTAS',
+]
 
 const ROLE_STORAGE_KEY = 'croplink:role'
 

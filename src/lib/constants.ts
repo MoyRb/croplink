@@ -1,4 +1,5 @@
 import { BRAND } from './brand'
+import { ACTIVOS_ALLOWED_ROLES } from './auth/roles'
 import type { UserRole } from './auth/roles'
 
 export const APP_NAME = BRAND.product
@@ -26,6 +27,15 @@ export const NAV_SECTIONS: NavItem[] = [
   {
     label: 'Inventario',
     to: '/inventario',
+  },
+  {
+    label: 'Activos',
+    roles: ACTIVOS_ALLOWED_ROLES,
+    children: [
+      { label: 'Lista', to: '/activos/lista' },
+      { label: 'Nuevo', to: '/activos/nuevo' },
+      { label: 'Reportes', to: '/activos/reportes' },
+    ],
   },
   {
     label: 'Monitoreos',
