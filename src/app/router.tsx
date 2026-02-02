@@ -2,14 +2,20 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from './AppShell'
 import { RequireAuth } from './auth/RequireAuth'
+import { RequireRole } from './auth/RequireRole'
 import { DashboardPage } from '../pages/dashboard/DashboardPage'
 import { LoginPage } from '../pages/login/LoginPage'
 import { MarketplaceCompararPage } from '../pages/marketplace/MarketplaceCompararPage'
 import { MonitoreosBitacoraPage } from '../pages/monitoreos/MonitoreosBitacoraPage'
 import { MonitoreosGraficasPage } from '../pages/monitoreos/MonitoreosGraficasPage'
 import { MonitoreosIniciarPage } from '../pages/monitoreos/MonitoreosIniciarPage'
+import { NominaEmpleadosPage } from '../pages/nomina/NominaEmpleadosPage'
+import { NominaPagosPage } from '../pages/nomina/NominaPagosPage'
+import { NominaPeriodosPage } from '../pages/nomina/NominaPeriodosPage'
+import { NominaReportesPage } from '../pages/nomina/NominaReportesPage'
 import { RequisicionesCrearPage } from '../pages/requisiciones/RequisicionesCrearPage'
 import { RequisicionesListaPage } from '../pages/requisiciones/RequisicionesListaPage'
+import { NOMINA_ALLOWED_ROLES } from '../lib/auth/roles'
 
 export function AppRouter() {
   return (
@@ -33,6 +39,38 @@ export function AppRouter() {
         <Route path="/monitoreos/iniciar" element={<MonitoreosIniciarPage />} />
         <Route path="/monitoreos/bitacora" element={<MonitoreosBitacoraPage />} />
         <Route path="/monitoreos/graficas" element={<MonitoreosGraficasPage />} />
+        <Route
+          path="/nomina/empleados"
+          element={
+            <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
+              <NominaEmpleadosPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/nomina/periodos"
+          element={
+            <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
+              <NominaPeriodosPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/nomina/pagos"
+          element={
+            <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
+              <NominaPagosPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/nomina/reportes"
+          element={
+            <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
+              <NominaReportesPage />
+            </RequireRole>
+          }
+        />
         <Route path="/configuracion" element={<DashboardPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -1,8 +1,16 @@
 import { BRAND } from './brand'
+import type { UserRole } from './auth/roles'
 
 export const APP_NAME = BRAND.product
 
-export const NAV_SECTIONS = [
+type NavItem = {
+  label: string
+  to?: string
+  children?: { label: string; to: string }[]
+  roles?: UserRole[]
+}
+
+export const NAV_SECTIONS: NavItem[] = [
   {
     label: 'Dashboard',
     to: '/dashboard',
@@ -25,6 +33,16 @@ export const NAV_SECTIONS = [
       { label: 'Iniciar', to: '/monitoreos/iniciar' },
       { label: 'Bitácora', to: '/monitoreos/bitacora' },
       { label: 'Gráficas', to: '/monitoreos/graficas' },
+    ],
+  },
+  {
+    label: 'Nómina',
+    roles: ['AGRICOLA_PRODUCTOR', 'AGROQUIMICA_ADMIN'],
+    children: [
+      { label: 'Empleados', to: '/nomina/empleados' },
+      { label: 'Periodos', to: '/nomina/periodos' },
+      { label: 'Pagos', to: '/nomina/pagos' },
+      { label: 'Reportes', to: '/nomina/reportes' },
     ],
   },
   {

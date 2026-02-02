@@ -1,10 +1,16 @@
 import { NavLink } from 'react-router-dom'
 
+import { getCurrentRole } from '../../lib/auth/roles'
 import { BRAND } from '../../lib/brand'
 import { NAV_SECTIONS } from '../../lib/constants'
 import { cn } from '../../lib/utils'
 
 export function Sidebar() {
+  const role = getCurrentRole()
+  const visibleSections = NAV_SECTIONS.filter(
+    (section) => !section.roles || section.roles.includes(role),
+  )
+
   return (
     <aside className="flex h-full w-64 flex-col border-r border-[#E5E7EB] bg-white px-4 py-6">
       <div className="px-2">
@@ -12,7 +18,7 @@ export function Sidebar() {
         <div className="text-xs uppercase tracking-wide text-gray-400">Operations</div>
       </div>
       <nav className="mt-8 flex-1 space-y-4">
-        {NAV_SECTIONS.map((section) => (
+        {visibleSections.map((section) => (
           <div key={section.label}>
             {section.children ? (
               <div>
