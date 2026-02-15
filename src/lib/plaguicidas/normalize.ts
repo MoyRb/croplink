@@ -1,5 +1,5 @@
-export const normalizeText = (value: string): string =>
-  value
+export const normalizeText = (input: unknown): string =>
+  String(input ?? '')
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
