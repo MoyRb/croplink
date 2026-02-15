@@ -14,6 +14,34 @@ export type RequisicionAdjunto = {
   url?: string
 }
 
+export type RequisicionItemMetadata = {
+  crop: string
+  target_type: 'Plaga' | 'Enfermedad'
+  target_common: string
+  target_common_norm: string
+  market: 'MX' | 'USA' | 'Todos'
+  resistance_class?: string
+  chemical_group?: string
+  safety_interval?: string
+  reentry_period?: string
+  interval_between_applications?: string
+  max_applications?: string
+  registration?: string
+  observations?: string
+  sheet?: string
+}
+
+export type RequisicionItem = {
+  id: string
+  product_id: string
+  commercial_name: string
+  active_ingredient: string
+  quantity: number
+  unit: string
+  notes?: string
+  metadata: RequisicionItemMetadata
+}
+
 export type Requisicion = {
   id: string
   producto: string
@@ -26,6 +54,7 @@ export type Requisicion = {
   total: number
   fecha: string
   adjunto?: RequisicionAdjunto
+  items?: RequisicionItem[]
 }
 
 export type NuevaRequisicion = Omit<Requisicion, 'id' | 'estado' | 'fecha' | 'total'> & {
@@ -181,6 +210,7 @@ export function useRequisicionesStore() {
         total: data.total ?? 0,
         fecha: data.fecha ?? new Date().toISOString().slice(0, 10),
         adjunto: data.adjunto,
+        items: data.items ?? [],
       }
 
       return [nueva, ...prev]
