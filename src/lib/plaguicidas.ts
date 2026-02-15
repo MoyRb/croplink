@@ -68,11 +68,11 @@ export type SearchRecommendationsParams = {
   limit?: number
 }
 
-const normalizeText = (value: string) =>
-  value
+const normalizeText = (input: unknown) =>
+  String(input ?? '')
+    .toLowerCase()
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
     .trim()
 
 const normalizeType = (value: string): PlaguicidaTargetType =>
