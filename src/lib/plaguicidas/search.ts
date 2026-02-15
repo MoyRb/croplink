@@ -40,7 +40,7 @@ const pushMapValue = <T>(map: Map<string, T[]>, key: string, value: T): void => 
   map.set(key, [value])
 }
 
-const hasValue = (value: string): number => (value.trim() ? 0 : 1)
+const hasValue = (value: unknown): number => (normalizeText(value) ? 0 : 1)
 
 const sortRecommendations = (a: UseCase, b: UseCase): number => {
   const byResistanceClass = hasValue(a.resistance_class) - hasValue(b.resistance_class)
@@ -49,7 +49,7 @@ const sortRecommendations = (a: UseCase, b: UseCase): number => {
   const bySafetyInterval = hasValue(a.safety_interval) - hasValue(b.safety_interval)
   if (bySafetyInterval !== 0) return bySafetyInterval
 
-  return a.commercial_name.localeCompare(b.commercial_name, 'es')
+  return normalizeText(a.commercial_name).localeCompare(normalizeText(b.commercial_name), 'es')
 }
 
 export const buildIndex = (useCases: UseCase[], targets: Target[]): SearchIndex => {
