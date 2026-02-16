@@ -177,8 +177,8 @@ export const searchPlaguicidasRecommendations = async ({
 
   const results = useCases
     .filter((item) => {
-      if (item.crop !== crop) return false
-      if (item.target_type !== targetType) return false
+      if (!cropIncludes(item.crop, crop)) return false
+      if (normalizeType(item.target_type) !== targetType) return false
 
       const itemTarget = normalizeText(item.target_common_norm || item.target_common)
       if (itemTarget !== normalizedTarget) return false
