@@ -167,8 +167,8 @@ export function RequisicionesCrearPage() {
     const selectedCrop = cultivo
     const targetSelected = targetSeleccionado
     const targetCommonNorm = targetSeleccionado?.target_common_norm
-    const market = mercado
-    const category = categoria || undefined
+    const market = mercado === 'Todos' ? undefined : mercado
+    const category = categoria === 'Todas' ? undefined : categoria || undefined
     const targetType = tipoProblema
 
     console.log('selectedCrop', selectedCrop)
@@ -183,16 +183,17 @@ export function RequisicionesCrearPage() {
 
     setLoadingRecommendations(true)
     try {
-      console.log('about to call getRecommendations...')
-      const recs = await searchPlaguicidasRecommendations({
+      const payload = {
         crop: selectedCrop,
         targetType,
         targetCommonNorm,
         market,
         category,
         limit: 30,
-      })
-      console.log('recommendations length', recs.length)
+      }
+      console.log('recommendations payload', payload)
+      const recs = await searchPlaguicidasRecommendations(payload)
+      console.log('recommendations results length', recs.length)
       console.log('recommendations sample', recs.slice(0, 3))
       setRecommendations(recs)
     } finally {
