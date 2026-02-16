@@ -75,7 +75,7 @@ export function RequisicionesCrearPage() {
   const [autocompleteOptions, setAutocompleteOptions] = useState<PlaguicidaTarget[]>([])
   const [loadingTargets, setLoadingTargets] = useState(false)
   const [loadingRecommendations, setLoadingRecommendations] = useState(false)
-  const [resultadosPlaguicidas, setResultadosPlaguicidas] = useState<PlaguicidaUseCase[]>([])
+  const [recommendations, setRecommendations] = useState<PlaguicidaUseCase[]>([])
   const [mercado, setMercado] = useState<PlaguicidaMarketFilter>('Todos')
   const [categoria, setCategoria] = useState('')
   const [categorias, setCategorias] = useState<string[]>([])
@@ -163,22 +163,38 @@ export function RequisicionesCrearPage() {
 
   const handleBuscarRecomendaciones = async () => {
     setHasSearched(true)
-    if (!targetSeleccionado) {
-      setResultadosPlaguicidas([])
+
+    const selectedCrop = cultivo
+    const targetSelected = targetSeleccionado
+    const targetCommonNorm = targetSeleccionado?.target_common_norm
+    const market = mercado
+    const category = categoria || undefined
+    const targetType = tipoProblema
+
+    console.log('selectedCrop', selectedCrop)
+    console.log('targetSelected', targetSelected)
+    console.log('targetCommonNorm', targetCommonNorm)
+    console.log('filters', { market, category, targetType })
+
+    if (!targetSelected || !targetCommonNorm) {
+      setRecommendations([])
       return
     }
 
     setLoadingRecommendations(true)
     try {
-      const results = await searchPlaguicidasRecommendations({
-        crop: cultivo,
-        targetType: tipoProblema,
-        targetCommonNorm: targetSeleccionado.target_common_norm,
-        market: mercado,
-        category: categoria || undefined,
+      console.log('about to call getRecommendations...')
+      const recs = await searchPlaguicidasRecommendations({
+        crop: selectedCrop,
+        targetType,
+        targetCommonNorm,
+        market,
+        category,
         limit: 30,
       })
-      setResultadosPlaguicidas(results)
+      console.log('recommendations length', recs.length)
+      console.log('recommendations sample', recs.slice(0, 3))
+      setRecommendations(recs)
     } finally {
       setLoadingRecommendations(false)
     }
@@ -294,7 +310,7 @@ export function RequisicionesCrearPage() {
     setTargetQuery('')
     setTargetSeleccionado(null)
     setAutocompleteOptions([])
-    setResultadosPlaguicidas([])
+    setRecommendations([])
     setHasSearched(false)
   }, [cultivo, tipoProblema])
 
@@ -550,10 +566,19 @@ export function RequisicionesCrearPage() {
                   ? `Target seleccionado: ${targetSeleccionado.target_common} (${targetSeleccionado.target_common_norm})`
                   : 'Selecciona un target del autocomplete para buscar recomendaciones.'}
               </p>
-              <Button type="button" variant="secondary" onClick={() => void handleBuscarRecomendaciones()}>
-                Buscar recomendaciones
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={loadingRecommendations}
+                onClick={() => void handleBuscarRecomendaciones()}
+              >
+                {loadingRecommendations ? 'Buscando…' : 'Buscar recomendaciones'}
               </Button>
             </div>
+
+            {hasSearched && !loadingRecommendations ? (
+              <p className="mt-4 text-sm font-medium text-gray-700">Encontrados {recommendations.length} productos</p>
+            ) : null}
 
             <div className="mt-4 overflow-hidden rounded-2xl border border-[#E5E7EB]">
               <table className="min-w-full text-left text-sm">
@@ -588,14 +613,14 @@ export function RequisicionesCrearPage() {
                         Selecciona un target válido del autocomplete.
                       </td>
                     </tr>
-                  ) : resultadosPlaguicidas.length === 0 ? (
+                  ) : recommendations.length === 0 ? (
                     <tr>
                       <td className="px-4 py-6 text-center text-sm text-gray-500" colSpan={8}>
                         No encontramos resultados con esos filtros.
                       </td>
                     </tr>
                   ) : (
-                    resultadosPlaguicidas.map((item) => (
+                    recommendations.map((item) => (
                       <tr key={item.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium text-gray-900">{item.commercial_name}</td>
                         <td className="px-4 py-3 text-gray-700">{fallbackValue(item.active_ingredient)}</td>
