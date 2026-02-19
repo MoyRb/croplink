@@ -1,4 +1,7 @@
+import { useEffect } from 'react'
+
 import { Input } from '../ui/Input'
+import { Toast } from '../ui/Toast'
 import { useOperationContext } from '../../lib/store/operationContext'
 import { cn } from '../../lib/utils'
 
@@ -10,19 +13,26 @@ export function Topbar() {
     operationContext,
     producers,
     ranches,
-    crops,
-    seasons,
+    cropSeasons,
     sectors,
     tunnels,
     valves,
+    contextNotice,
+    clearContextNotice,
     setProducer,
     setRanch,
-    setCrop,
-    setSeason,
+    setCropSeason,
     setSector,
     setTunnel,
     setValve,
   } = useOperationContext()
+  useEffect(() => {
+    if (!contextNotice) return
+    const timer = window.setTimeout(() => {
+      clearContextNotice()
+    }, 3000)
+    return () => window.clearTimeout(timer)
+  }, [clearContextNotice, contextNotice])
 
   return (
     <header className="space-y-3 border-b border-[#E5E7EB] bg-white px-6 py-4">
@@ -46,6 +56,8 @@ export function Topbar() {
           </div>
         </div>
       </div>
+
+      {contextNotice ? <Toast>{contextNotice}</Toast> : null}
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] p-3">
         <p className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Contexto de operación</p>
@@ -78,70 +90,56 @@ export function Topbar() {
 
         <select
           className={cn(selectStyles, 'min-w-36')}
-          value={operationContext.crop}
-          onChange={(event) => setCrop(event.target.value)}
+          value={operationContext.cropSeason?.id ?? ''}
+          onChange={(event) => setCropSeason(event.target.value)}
           disabled={!operationContext.ranch}
         >
-          <option value="">Cultivo</option>
-          {crops.map((crop) => (
-            <option key={crop} value={crop}>
-              {crop}
+          <option value="">Cultivo · Temporada</option>
+          {cropSeasons.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
             </option>
           ))}
         </select>
 
         <select
           className={cn(selectStyles, 'min-w-28')}
-          value={operationContext.season ?? ''}
-          onChange={(event) => setSeason(event.target.value)}
-          disabled={!operationContext.crop || seasons.length === 0}
-        >
-          <option value="">Temporada</option>
-          {seasons.map((season) => (
-            <option key={season} value={season}>
-              {season}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={cn(selectStyles, 'min-w-28')}
-          value={operationContext.sector ?? ''}
+          value={operationContext.sector?.id ?? ''}
           onChange={(event) => setSector(event.target.value)}
-          disabled={!operationContext.crop || sectors.length === 0}
+          disabled={!operationContext.ranch || sectors.length === 0}
         >
           <option value="">Sector</option>
           {sectors.map((sector) => (
-            <option key={sector} value={sector}>
-              {sector}
+            <option key={sector.id} value={sector.id}>
+              {sector.name}
             </option>
           ))}
         </select>
 
         <select
           className={cn(selectStyles, 'min-w-28')}
-          value={operationContext.tunnel ?? ''}
+          value={operationContext.tunnel?.id ?? ''}
           onChange={(event) => setTunnel(event.target.value)}
-          disabled={!operationContext.crop || tunnels.length === 0}
+          disabled={!operationContext.sector || tunnels.length === 0}
         >
           <option value="">Túnel</option>
           {tunnels.map((tunnel) => (
-            <option key={tunnel} value={tunnel}>
-              {tunnel}
+            <option key={tunnel.id} value={tunnel.id}>
+              {tunnel.name}
             </option>
           ))}
         </select>
 
         <select
           className={cn(selectStyles, 'min-w-28')}
-          value={operationContext.valve ?? ''}
+          value={operationContext.valve?.id ?? ''}
           onChange={(event) => setValve(event.target.value)}
-          disabled={!operationContext.crop || valves.length === 0}
+          disabled={!operationContext.tunnel || valves.length === 0}
         >
           <option value="">Válvula</option>
           {valves.map((valve) => (
-            <option key={valve} value={valve}>
-              {valve}
+            <option key={valve.id} value={valve.id}>
+              {valve.name}
             </option>
           ))}
         </select>

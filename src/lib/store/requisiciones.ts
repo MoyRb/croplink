@@ -45,11 +45,12 @@ export type RequisicionItem = {
 export type RequisicionOperationContext = {
   producer: { id: string; name: string } | null
   ranch: { id: string; name: string } | null
-  crop: string
+  crop?: string
   season?: string
-  sector?: string
-  tunnel?: string
-  valve?: string
+  cropSeason?: { id: string; name: string } | null
+  sector?: { id: string; name: string } | null
+  tunnel?: { id: string; name: string } | null
+  valve?: { id: string; name: string } | null
 }
 
 export type Requisicion = {
