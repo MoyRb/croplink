@@ -7,13 +7,14 @@ import { Input } from '../../components/ui/Input'
 import { Toast } from '../../components/ui/Toast'
 import { SELECTED_OFFER_STORAGE_KEY, type SelectedOfferPayload } from '../../lib/marketplace/offers'
 import {
-  getPlaguicidasCategories,
-  searchPlaguicidasRecommendations,
+  buildIndex,
+  getRecommendations,
+  loadTargets,
+  loadUseCases,
   searchTargets,
-  type PlaguicidaMarketFilter,
-  type PlaguicidaTarget,
-  type PlaguicidaTargetType,
-  type PlaguicidaUseCase,
+  type SearchIndex,
+  type Target,
+  type UseCase,
 } from '../../lib/plaguicidas'
 import { useRequisicionesStore, type NuevaRequisicion, type RequisicionItem } from '../../lib/store/requisiciones'
 import { cn } from '../../lib/utils'
@@ -22,8 +23,8 @@ const unidades = ['kg', 'L', 'pza'] as const
 const centrosCosto = ['Operaciones', 'Compras', 'Mantenimiento', 'Campo'] as const
 const prioridades = ['Baja', 'Media', 'Alta'] as const
 const cultivosDisponibles = ['Arándano', 'Fresa', 'Frambuesa', 'Zarzamora'] as const
-const tiposPlaga: PlaguicidaTargetType[] = ['Plaga', 'Enfermedad']
-const mercados: PlaguicidaMarketFilter[] = ['MX', 'USA', 'Todos']
+const tiposPlaga = ['Plaga', 'Enfermedad'] as const
+const mercados = ['MX', 'USA', 'Todos'] as const
 
 const maxFileSize = 10 * 1024 * 1024
 
@@ -67,18 +68,19 @@ export function RequisicionesCrearPage() {
   const [duplicateToastVisible, setDuplicateToastVisible] = useState(false)
 
   const [cultivo, setCultivo] = useState<(typeof cultivosDisponibles)[number]>('Arándano')
-  const [tipoProblema, setTipoProblema] = useState<PlaguicidaTargetType>('Plaga')
+  const [tipoProblema, setTipoProblema] = useState<(typeof tiposPlaga)[number]>('Plaga')
   const [targetQuery, setTargetQuery] = useState('')
   const [targetSeleccionado, setTargetSeleccionado] = useState<{ target_common: string; target_common_norm: string } | null>(
     null,
   )
-  const [autocompleteOptions, setAutocompleteOptions] = useState<PlaguicidaTarget[]>([])
+  const [autocompleteOptions, setAutocompleteOptions] = useState<Target[]>([])
   const [loadingTargets, setLoadingTargets] = useState(false)
   const [loadingRecommendations, setLoadingRecommendations] = useState(false)
-  const [recommendations, setRecommendations] = useState<PlaguicidaUseCase[]>([])
-  const [mercado, setMercado] = useState<PlaguicidaMarketFilter>('Todos')
+  const [recommendations, setRecommendations] = useState<UseCase[]>([])
+  const [mercado, setMercado] = useState<(typeof mercados)[number]>('Todos')
   const [categoria, setCategoria] = useState('')
   const [categorias, setCategorias] = useState<string[]>([])
+  const [searchIndex, setSearchIndex] = useState<SearchIndex | null>(null)
   const [itemsRequisicion, setItemsRequisicion] = useState<RequisicionItem[]>([])
   const [hasSearched, setHasSearched] = useState(false)
 
@@ -108,10 +110,10 @@ export function RequisicionesCrearPage() {
     return Array.from(groups.values()).some((count) => count >= 2)
   }, [itemsRequisicion])
 
-  const handleAgregarItem = (item: PlaguicidaUseCase) => {
+  const handleAgregarItem = (item: UseCase) => {
     if (!targetSeleccionado) return
 
-    const productId = item.product_id || item.id
+    const productId = item.product_id
     setItemsRequisicion((prev) => {
       const alreadyExists = prev.some(
         (existing) =>
@@ -178,22 +180,31 @@ export function RequisicionesCrearPage() {
 
     setLoadingRecommendations(true)
     try {
-      const payload = {
-        crop: selectedCrop,
-        targetType: targetTypeNorm,
-        targetCommonNorm,
-        market,
-        category,
-        limit: 30,
+      if (!searchIndex) {
+        setRecommendations([])
+        return
       }
-      const results = await searchPlaguicidasRecommendations(payload)
+
+      const results = getRecommendations(
+        {
+          crop: selectedCrop,
+          targetType: targetTypeNorm,
+          targetCommonNorm,
+          market,
+          category,
+        },
+        searchIndex,
+      )
+      if (import.meta.env.DEV) {
+        console.log('recommendations length', results.length)
+      }
       setRecommendations(results)
     } finally {
       setLoadingRecommendations(false)
     }
   }
 
-  const handleSelectTarget = (target: PlaguicidaTarget) => {
+  const handleSelectTarget = (target: Target) => {
     setTargetSeleccionado({
       target_common: target.target_common,
       target_common_norm: target.target_common_norm,
@@ -293,19 +304,43 @@ export function RequisicionesCrearPage() {
   }, [])
 
   useEffect(() => {
-    const loadCategories = async () => {
-      const availableCategories = await getPlaguicidasCategories({ crop: cultivo, targetType: tipoProblema })
-      setCategorias(availableCategories)
-      setCategoria('')
+    const loadPlaguicidas = async () => {
+      const [useCases, targets] = await Promise.all([loadUseCases(), loadTargets()])
+      setSearchIndex(buildIndex(useCases, targets))
     }
 
-    void loadCategories()
+    void loadPlaguicidas()
+  }, [])
+
+  useEffect(() => {
+    if (!searchIndex) return
+
+    const normalizedCrop = cultivo.toLowerCase()
+    const normalizedType = tipoProblema.toLowerCase()
+    const availableCategories = Array.from(
+      new Set(
+        searchIndex.targets
+          .filter((target) =>
+            target.crop
+              .toLowerCase()
+              .split(',')
+              .map((value) => value.trim())
+              .includes(normalizedCrop),
+          )
+          .filter((target) => target.target_type.toLowerCase() === normalizedType)
+          .map((target) => target.category)
+          .filter(Boolean),
+      ),
+    ).sort((a, b) => a.localeCompare(b, 'es'))
+
+    setCategorias(availableCategories)
+    setCategoria('')
     setTargetQuery('')
     setTargetSeleccionado(null)
     setAutocompleteOptions([])
     setRecommendations([])
     setHasSearched(false)
-  }, [cultivo, tipoProblema])
+  }, [cultivo, searchIndex, tipoProblema])
 
   useEffect(() => {
     if (!targetQuery.trim()) {
@@ -316,13 +351,22 @@ export function RequisicionesCrearPage() {
 
     const timer = window.setTimeout(() => {
       setLoadingTargets(true)
-      searchTargets({ crop: cultivo, targetType: tipoProblema, q: targetQuery })
-        .then((options) => setAutocompleteOptions(options))
-        .finally(() => setLoadingTargets(false))
+      if (!searchIndex) {
+        setAutocompleteOptions([])
+        setLoadingTargets(false)
+        return
+      }
+
+      const options = searchTargets(
+        { crop: cultivo, targetType: tipoProblema.toLowerCase(), q: targetQuery },
+        searchIndex,
+      )
+      setAutocompleteOptions(options)
+      setLoadingTargets(false)
     }, 250)
 
     return () => window.clearTimeout(timer)
-  }, [cultivo, targetQuery, tipoProblema])
+  }, [cultivo, searchIndex, targetQuery, tipoProblema])
 
   useEffect(() => {
     if (
@@ -614,7 +658,7 @@ export function RequisicionesCrearPage() {
                     </tr>
                   ) : (
                     recommendations.map((item) => (
-                      <tr key={item.id} className="hover:bg-gray-50">
+                      <tr key={`${item.product_id}-${item.market}-${item.category}`} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-medium text-gray-900">{item.commercial_name}</td>
                         <td className="px-4 py-3 text-gray-700">{fallbackValue(item.active_ingredient)}</td>
                         <td className="px-4 py-3 text-gray-700">{fallbackValue(item.resistance_class)}</td>
