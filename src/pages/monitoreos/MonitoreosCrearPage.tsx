@@ -5,11 +5,50 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
-import { ETAPAS_FENOLOGICAS, METEO_OPTIONS, createSession, type SessionConfig } from '../../lib/monitoreo'
+import { ETAPAS_FENOLOGICAS, METEO_OPTIONS, type SessionConfig } from '../../lib/monitoreo'
 import { useOperationContext } from '../../lib/store/operationContext'
+
+type ThresholdRule = {
+  id: string
+  metric: string
+  min?: number | null
+  max?: number | null
+  unit?: string | null
+}
+
+type MonitoringSessionPayload = {
+  rancho: string
+  cultivo: string
+  sector: string
+  tunel?: string
+  valvula?: string
+  superficie?: number
+  condiciones: {
+    humedad?: number
+    temperatura?: number
+    clima?: SessionConfig['condicionMeteorologica']
+  }
+  etapa: SessionConfig['etapaFenologica']
+  muestreo: {
+    puntosPorSector: number
+    plantasPorPunto: number
+    metrosMuestreados: number
+  }
+  tipo: 'desarrollo' | 'nutricion'
+  umbrales: ThresholdRule[]
+  startedAt: string
+}
 
 const mockRanches = ['Rancho Norte', 'Rancho Sur']
 const mockCultivos = ['Tomate', 'Pepino', 'Pimiento']
+
+const getUuid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`)
+
+const parseNullableNumber = (value: string) => {
+  if (!value.trim()) return null
+  const parsed = Number(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
 
 export function MonitoreosCrearPage() {
   const navigate = useNavigate()
@@ -31,9 +70,12 @@ export function MonitoreosCrearPage() {
     umbrales: [],
   })
 
+  const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>([])
   const [metric, setMetric] = useState('')
   const [min, setMin] = useState('')
   const [max, setMax] = useState('')
+  const [unit, setUnit] = useState('')
+  const [formError, setFormError] = useState('')
 
   const availableRanches = useMemo(
     () => (ranches.length > 0 ? ranches.map((item) => item.name) : mockRanches),
@@ -41,27 +83,94 @@ export function MonitoreosCrearPage() {
   )
 
   const handleAddThreshold = () => {
-    if (!metric.trim()) return
-    setConfig((prev) => ({
-      ...prev,
-      umbrales: [
-        ...prev.umbrales,
+    const normalizedMetric = metric.trim()
+    if (!normalizedMetric) {
+      setFormError('La métrica de umbral es obligatoria.')
+      return
+    }
+
+    const parsedMin = parseNullableNumber(min)
+    const parsedMax = parseNullableNumber(max)
+
+    setThresholdRules((prev) => {
+      const existingIndex = prev.findIndex(
+        (rule) => rule.metric.toLowerCase() === normalizedMetric.toLowerCase(),
+      )
+
+      if (existingIndex >= 0) {
+        const updated = [...prev]
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          metric: normalizedMetric,
+          min: parsedMin,
+          max: parsedMax,
+          unit: unit.trim() || null,
+        }
+        return updated
+      }
+
+      return [
+        ...prev,
         {
-          id: crypto.randomUUID(),
-          metric: metric.trim(),
-          min: min ? Number(min) : undefined,
-          max: max ? Number(max) : undefined,
+          id: getUuid(),
+          metric: normalizedMetric,
+          min: parsedMin,
+          max: parsedMax,
+          unit: unit.trim() || null,
         },
-      ],
-    }))
+      ]
+    })
+
     setMetric('')
     setMin('')
     setMax('')
+    setUnit('')
+    setFormError('')
   }
 
-  const handleStart = () => {
-    const session = createSession(config)
-    navigate(`/monitoreos/sesion/${session.id}`)
+  const handleRemoveThreshold = (id: string) => {
+    setThresholdRules((prev) => prev.filter((rule) => rule.id !== id))
+  }
+
+  const handleIniciarMonitoreo = () => {
+    if (!config.rancho.trim() || !config.cultivo.trim() || !config.sector.trim() || !config.etapaFenologica) {
+      setFormError('Completa rancho, cultivo, sector y etapa para iniciar el monitoreo.')
+      return
+    }
+
+    if (config.puntosPorSector <= 0 || config.plantasPorPunto <= 0) {
+      setFormError('Puntos por sector y plantas por punto deben ser mayores a 0.')
+      return
+    }
+
+    const payload: MonitoringSessionPayload = {
+      rancho: config.rancho,
+      cultivo: config.cultivo,
+      sector: config.sector,
+      tunel: config.tunnel,
+      valvula: config.valve,
+      superficie: config.superficie,
+      condiciones: {
+        humedad: config.humedadRelativa,
+        temperatura: config.temperatura,
+        clima: config.condicionMeteorologica,
+      },
+      etapa: config.etapaFenologica,
+      muestreo: {
+        puntosPorSector: config.puntosPorSector,
+        plantasPorPunto: config.plantasPorPunto,
+        metrosMuestreados: config.metrosMuestreados,
+      },
+      tipo: config.tipoMonitoreo === 'DESARROLLO' ? 'desarrollo' : 'nutricion',
+      umbrales: thresholdRules,
+      startedAt: new Date().toISOString(),
+    }
+
+    const sessionId = getUuid()
+    localStorage.setItem(`monitoreo_session_${sessionId}`, JSON.stringify(payload))
+    localStorage.setItem('monitoreo_session_active', sessionId)
+    setFormError('')
+    navigate(`/monitoreos/iniciar/${sessionId}`)
   }
 
   const muestraTotal = config.puntosPorSector * config.plantasPorPunto
@@ -166,6 +275,7 @@ export function MonitoreosCrearPage() {
           {ETAPAS_FENOLOGICAS.map((etapa) => (
             <button
               key={etapa.value}
+              type="button"
               className={`rounded-full px-3 py-1 text-xs font-semibold ${
                 config.etapaFenologica === etapa.value
                   ? 'bg-[#DBFAE6] text-[#0B6B2A]'
@@ -261,25 +371,38 @@ export function MonitoreosCrearPage() {
 
       <Card className="space-y-4">
         <h2 className="font-semibold text-gray-900">Umbrales</h2>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-5">
           <Input placeholder="Métrica" value={metric} onChange={(event) => setMetric(event.target.value)} />
           <Input placeholder="Min" type="number" value={min} onChange={(event) => setMin(event.target.value)} />
           <Input placeholder="Max" type="number" value={max} onChange={(event) => setMax(event.target.value)} />
+          <Input placeholder="Unidad (opcional)" value={unit} onChange={(event) => setUnit(event.target.value)} />
           <Button type="button" onClick={handleAddThreshold}>
             Agregar regla
           </Button>
         </div>
         <div className="flex flex-wrap gap-2">
-          {config.umbrales.map((rule) => (
-            <Badge key={rule.id}>{`${rule.metric} [${rule.min ?? '-'}, ${rule.max ?? '-'}]`}</Badge>
+          {thresholdRules.map((rule) => (
+            <div key={rule.id} className="flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1">
+              <Badge>{`${rule.metric} [${rule.min ?? '-'}, ${rule.max ?? '-'}]${rule.unit ? ` ${rule.unit}` : ''}`}</Badge>
+              <button
+                type="button"
+                className="text-xs font-semibold text-red-600"
+                onClick={() => handleRemoveThreshold(rule.id)}
+              >
+                Eliminar
+              </button>
+            </div>
           ))}
         </div>
       </Card>
 
-      <div className="flex justify-end">
-        <Button onClick={handleStart} disabled={!config.rancho || !config.cultivo || !config.sector}>
-          Iniciar monitoreo
-        </Button>
+      <div className="space-y-2">
+        <div className="flex justify-end">
+          <Button type="button" onClick={handleIniciarMonitoreo}>
+            Iniciar monitoreo
+          </Button>
+        </div>
+        {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
       </div>
     </div>
   )
