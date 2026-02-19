@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Menu } from 'lucide-react'
 
 import { Input } from '../ui/Input'
 import { Toast } from '../ui/Toast'
@@ -8,7 +9,11 @@ import { cn } from '../../lib/utils'
 const selectStyles =
   'rounded-full border border-[#E5E7EB] bg-white px-3 py-2 text-xs text-gray-700 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6]'
 
-export function Topbar() {
+type TopbarProps = {
+  onMobileMenuClick: () => void
+}
+
+export function Topbar({ onMobileMenuClick }: TopbarProps) {
   const {
     operationContext,
     operations,
@@ -36,8 +41,16 @@ export function Topbar() {
 
   return (
     <header className="space-y-3 border-b border-[#E5E7EB] bg-white px-6 py-4">
-      <div className="flex items-center justify-between gap-4">
-        <div className="max-w-md flex-1">
+      <div className="flex items-center justify-between gap-3 md:gap-4">
+        <div className="flex items-center gap-2 max-w-md flex-1">
+          <button
+            type="button"
+            onClick={onMobileMenuClick}
+            className="inline-flex rounded-lg border border-[#E5E7EB] bg-white p-2 text-gray-600 transition hover:bg-gray-100 md:hidden"
+            title="Abrir menú"
+          >
+            <Menu className="h-4 w-4" />
+          </button>
           <Input placeholder="Buscar requisiciones, órdenes o proveedores" />
         </div>
         <div className="flex items-center gap-3">
