@@ -3,7 +3,7 @@ import { PanelLeftClose, PanelLeftOpen, X } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 
 import { SidebarSection } from './SidebarSection'
-import { SIDEBAR_NAV, type SidebarNavItem } from './sidebarNav'
+import { SIDEBAR_NAV, type SidebarNavItem, type SidebarNavSection } from './sidebarNav'
 import { getCurrentRole } from '../../lib/auth/roles'
 import { BRAND } from '../../lib/brand'
 import { cn } from '../../lib/utils'
@@ -28,6 +28,24 @@ function isItemPathActive(pathname: string, item: SidebarNavItem) {
   return pathname.startsWith(`${item.to}/`)
 }
 
+function isSectionPathActive(pathname: string, section: SidebarNavSection) {
+  if (section.items?.some((item) => isItemPathActive(pathname, item))) {
+    return true
+  }
+
+  if (!section.to) {
+    return false
+  }
+
+  if (pathname === section.to) return true
+
+  if (section.matchPaths) {
+    return section.matchPaths.some((path) => pathname.startsWith(path))
+  }
+
+  return pathname.startsWith(`${section.to}/`)
+}
+
 export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const location = useLocation()
   const role = getCurrentRole()
@@ -37,39 +55,46 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
     [role],
   )
 
-  const [openSection, setOpenSection] = useState<string | null>(() =>
-    window.localStorage.getItem(STORAGE_KEYS.openSection),
-  )
+  const [manualOpenState, setManualOpenState] = useState<{ pathname: string; sectionId: string | null }>(() => ({
+    pathname: window.location.pathname,
+    sectionId: window.localStorage.getItem(STORAGE_KEYS.openSection),
+  }))
   const [isCollapsed, setIsCollapsed] = useState(() =>
     window.localStorage.getItem(STORAGE_KEYS.isCollapsed) === 'true',
   )
 
+  const activeAccordionSectionId = useMemo(
+    () =>
+      visibleSections.find(
+        (section) => section.items?.length && isSectionPathActive(location.pathname, section),
+      )?.id ?? null,
+    [location.pathname, visibleSections],
+  )
+
+  const resolvedOpenSection =
+    manualOpenState.pathname === location.pathname ? manualOpenState.sectionId : activeAccordionSectionId
+
   useEffect(() => {
-    if (!openSection) return
-    window.localStorage.setItem(STORAGE_KEYS.openSection, openSection)
-  }, [openSection])
+    if (!resolvedOpenSection) {
+      window.localStorage.removeItem(STORAGE_KEYS.openSection)
+      return
+    }
+
+    window.localStorage.setItem(STORAGE_KEYS.openSection, resolvedOpenSection)
+  }, [resolvedOpenSection])
 
   useEffect(() => {
     window.localStorage.setItem(STORAGE_KEYS.isCollapsed, String(isCollapsed))
   }, [isCollapsed])
 
-  const activeSectionId = useMemo(
-    () =>
-      visibleSections.find((section) =>
-        section.items.some((item) => isItemPathActive(location.pathname, item)),
-      )?.id ?? null,
-    [location.pathname, visibleSections],
-  )
-
-  const fallbackSectionId = visibleSections[0]?.id ?? null
-  const persistedOpenSection =
-    openSection && visibleSections.some((section) => section.id === openSection) ? openSection : null
-  const resolvedOpenSection = activeSectionId ?? persistedOpenSection ?? fallbackSectionId
-
   const toggleSection = (sectionId: string) => {
-    setOpenSection((prevOpenSection) =>
-      (prevOpenSection ?? resolvedOpenSection) === sectionId ? null : sectionId,
-    )
+    setManualOpenState((current) => {
+      const currentSection = current.pathname === location.pathname ? current.sectionId : activeAccordionSectionId
+      return {
+        pathname: location.pathname,
+        sectionId: currentSection === sectionId ? null : sectionId,
+      }
+    })
   }
 
   return (
@@ -124,8 +149,10 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
               key={section.id}
               label={section.label}
               icon={section.icon}
+              to={section.to}
               items={section.items}
               isOpen={resolvedOpenSection === section.id}
+              isActive={isSectionPathActive(location.pathname, section)}
               isCollapsed={isCollapsed}
               onToggle={() => toggleSection(section.id)}
               onNavigate={onCloseMobile}

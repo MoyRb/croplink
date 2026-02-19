@@ -21,7 +21,9 @@ export type SidebarNavSection = {
   id: string
   label: string
   icon: LucideIcon
-  items: SidebarNavItem[]
+  to?: string
+  matchPaths?: string[]
+  items?: SidebarNavItem[]
   roles?: UserRole[]
 }
 
@@ -30,55 +32,43 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
     id: 'dashboard',
     label: 'Dashboard',
     icon: Gauge,
-    items: [{ label: 'Inicio', to: '/dashboard' }],
+    to: '/dashboard',
   },
   {
     id: 'requisiciones',
     label: 'Requisiciones',
     icon: ClipboardList,
-    items: [
-      { label: 'Lista', to: '/requisiciones/lista' },
-      { label: 'Crear', to: '/requisiciones/crear' },
-      { label: 'Aprobaciones', to: '/requisiciones/aprobaciones' },
-    ],
+    to: '/requisiciones/lista',
+    matchPaths: ['/requisiciones/'],
   },
   {
     id: 'inventario',
     label: 'Inventario',
     icon: Building2,
-    items: [{ label: 'Vista general', to: '/inventario' }],
+    to: '/inventario',
   },
   {
     id: 'activos',
     label: 'Activos',
     icon: HardHat,
     roles: ACTIVOS_ALLOWED_ROLES,
-    items: [
-      { label: 'Lista', to: '/activos/lista', matchPaths: ['/activos/'] },
-      { label: 'Nuevo', to: '/activos/nuevo' },
-      { label: 'Reportes', to: '/activos/reportes' },
-    ],
+    to: '/activos/lista',
+    matchPaths: ['/activos/'],
   },
   {
     id: 'monitoreos',
     label: 'Monitoreos',
     icon: Sprout,
-    items: [
-      { label: 'Lista', to: '/monitoreos/lista' },
-      { label: 'Crear', to: '/monitoreos/crear' },
-    ],
+    to: '/monitoreos/lista',
+    matchPaths: ['/monitoreos/'],
   },
   {
     id: 'nomina',
     label: 'Nómina',
     icon: Landmark,
     roles: ['AGRICOLA_PRODUCTOR', 'AGROQUIMICA_ADMIN'],
-    items: [
-      { label: 'Empleados', to: '/nomina/empleados' },
-      { label: 'Periodos', to: '/nomina/periodos' },
-      { label: 'Pagos', to: '/nomina/pagos' },
-      { label: 'Reportes', to: '/nomina/reportes' },
-    ],
+    to: '/nomina/empleados',
+    matchPaths: ['/nomina/'],
   },
   {
     id: 'configuracion',
