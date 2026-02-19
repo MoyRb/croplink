@@ -186,8 +186,8 @@ export function RequisicionesCrearPage() {
         category,
         limit: 30,
       }
-      const recs = await searchPlaguicidasRecommendations(payload)
-      setRecommendations(recs)
+      const results = await searchPlaguicidasRecommendations(payload)
+      setRecommendations(results)
     } finally {
       setLoadingRecommendations(false)
     }

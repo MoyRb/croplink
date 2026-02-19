@@ -68,8 +68,8 @@ export type SearchRecommendationsParams = {
   limit?: number
 }
 
-const normalizeText = (input: unknown) =>
-  String(input ?? '')
+const normalizeText = (value: string | null | undefined) =>
+  String(value ?? '')
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
@@ -78,13 +78,25 @@ const normalizeText = (input: unknown) =>
 const normalizeType = (value: string): PlaguicidaTargetType =>
   normalizeText(value).startsWith('enfermedad') ? 'Enfermedad' : 'Plaga'
 
-const cropIncludes = (cropField: string, selectedCrop: string) => {
+const cropIncludes = (cropField: string | null | undefined, selectedCrop: string | null | undefined) => {
   const normalizedSelectedCrop = normalizeText(selectedCrop)
+  if (!normalizedSelectedCrop) return false
 
-  return cropField
-    .split(',')
-    .map((item) => normalizeText(item))
-    .includes(normalizedSelectedCrop)
+  return normalizeText(cropField).includes(normalizedSelectedCrop)
+}
+
+const shouldApplyOptionalFilter = (value: string | undefined, allValue: 'todos' | 'todas') => {
+  if (!value) return false
+  return normalizeText(value) !== allValue
+}
+
+const isMatchingType = (candidateType: string | null | undefined, selectedType: string) => {
+  const normalizedType = normalizeText(candidateType)
+  return normalizedType === selectedType
+}
+
+const isMatchingTarget = (candidateTarget: string | null | undefined, selectedTarget: string) => {
+  return normalizeText(candidateTarget) === selectedTarget
 }
 
 let dataPromise: Promise<PlaguicidasData> | null = null
@@ -161,39 +173,25 @@ export const searchPlaguicidasRecommendations = async ({
   category,
   limit = 30,
 }: SearchRecommendationsParams) => {
-  const { products, targets, useCases } = await loadPlaguicidasData()
+  const { products, useCases } = await loadPlaguicidasData()
 
   const normalizedCrop = normalizeText(crop)
   const normalizedTargetType = normalizeText(targetType)
   const normalizedTarget = normalizeText(targetCommonNorm)
   const productByName = new Map(products.map((product) => [normalizeText(product.commercial_name), product]))
-
-  const matchingTargetCategories = new Set(
-    targets
-      .filter((target) => {
-        if (!cropIncludes(target.crop, normalizedCrop)) return false
-        if (normalizeText(normalizeType(target.target_type)) !== normalizedTargetType) return false
-
-        return normalizeText(target.target_common_norm || target.target_common) === normalizedTarget
-      })
-      .map((target) => target.category)
-      .filter(Boolean),
-  )
+  const hasMarketFilter = shouldApplyOptionalFilter(market, 'todos')
+  const hasCategoryFilter = shouldApplyOptionalFilter(category, 'todas')
 
   const results = useCases
     .filter((item) => {
       if (!cropIncludes(item.crop, normalizedCrop)) return false
-      if (normalizeText(normalizeType(item.target_type)) !== normalizedTargetType) return false
+      if (!isMatchingType(item.target_type, normalizedTargetType)) return false
 
-      const itemTarget = normalizeText(item.target_common_norm || item.target_common)
-      if (itemTarget !== normalizedTarget) return false
+      if (!isMatchingTarget(item.target_common_norm, normalizedTarget)) return false
 
-      if (market !== 'Todos' && item.market !== market) return false
+      if (hasMarketFilter && normalizeText(item.market) !== normalizeText(market)) return false
 
-      if (category) {
-        const itemCategory = item.category || (matchingTargetCategories.has(category) ? category : '')
-        if (itemCategory !== category) return false
-      }
+      if (hasCategoryFilter && normalizeText(item.category) !== normalizeText(category)) return false
 
       return true
     })
@@ -205,7 +203,7 @@ export const searchPlaguicidasRecommendations = async ({
         active_ingredient: item.active_ingredient || matchedProduct?.active_ingredient || '—',
         resistance_class: item.resistance_class || matchedProduct?.resistance_class,
         chemical_group: item.chemical_group || matchedProduct?.chemical_group,
-        category: item.category || Array.from(matchingTargetCategories)[0],
+        category: item.category,
       }
     })
 
