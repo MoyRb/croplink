@@ -11,7 +11,7 @@ const selectStyles =
 export function Topbar() {
   const {
     operationContext,
-    producers,
+    operations,
     ranches,
     cropSeasons,
     sectors,
@@ -19,7 +19,7 @@ export function Topbar() {
     valves,
     contextNotice,
     clearContextNotice,
-    setProducer,
+    setOperation,
     setRanch,
     setCropSeason,
     setSector,
@@ -63,13 +63,13 @@ export function Topbar() {
         <p className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Contexto de operación</p>
         <select
           className={cn(selectStyles, 'min-w-40')}
-          value={operationContext.producer?.id ?? ''}
-          onChange={(event) => setProducer(event.target.value)}
+          value={operationContext.operation?.id ?? ''}
+          onChange={(event) => setOperation(event.target.value)}
         >
-          <option value="">Productor</option>
-          {producers.map((producer) => (
-            <option key={producer.id} value={producer.id}>
-              {producer.name}
+          <option value="">Operación</option>
+          {operations.map((operation) => (
+            <option key={operation.id} value={operation.id}>
+              {operation.name}
             </option>
           ))}
         </select>
@@ -78,7 +78,7 @@ export function Topbar() {
           className={cn(selectStyles, 'min-w-40')}
           value={operationContext.ranch?.id ?? ''}
           onChange={(event) => setRanch(event.target.value)}
-          disabled={!operationContext.producer}
+          disabled={!operationContext.operation}
         >
           <option value="">Rancho</option>
           {ranches.map((ranch) => (
@@ -134,7 +134,7 @@ export function Topbar() {
           className={cn(selectStyles, 'min-w-28')}
           value={operationContext.valve?.id ?? ''}
           onChange={(event) => setValve(event.target.value)}
-          disabled={!operationContext.tunnel || valves.length === 0}
+          disabled={!operationContext.sector || valves.length === 0}
         >
           <option value="">Válvula</option>
           {valves.map((valve) => (

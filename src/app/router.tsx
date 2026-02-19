@@ -24,6 +24,13 @@ import { ActivosNuevoPage } from '../pages/activos/ActivosNuevoPage'
 import { ActivosReportesPage } from '../pages/activos/ActivosReportesPage'
 import { ACTIVOS_ALLOWED_ROLES, NOMINA_ALLOWED_ROLES } from '../lib/auth/roles'
 import { EstructuraPage } from '../pages/configuracion/EstructuraPage'
+import { CultivosPage } from '../pages/configuracion/estructura/CultivosPage'
+import { OperacionesPage } from '../pages/configuracion/estructura/OperacionesPage'
+import { RanchosPage } from '../pages/configuracion/estructura/RanchosPage'
+import { SectoresPage } from '../pages/configuracion/estructura/SectoresPage'
+import { TemporadasPage } from '../pages/configuracion/estructura/TemporadasPage'
+import { TunelesPage } from '../pages/configuracion/estructura/TunelesPage'
+import { ValvulasPage } from '../pages/configuracion/estructura/ValvulasPage'
 
 export function AppRouter() {
   return (
@@ -123,6 +130,13 @@ export function AppRouter() {
         />
         <Route path="/configuracion" element={<Navigate to="/configuracion/estructura" replace />} />
         <Route path="/configuracion/estructura" element={<EstructuraPage />} />
+        <Route path="/configuracion/estructura/operaciones" element={<OperacionesPage />} />
+        <Route path="/configuracion/estructura/ranchos" element={<RanchosPage />} />
+        <Route path="/configuracion/estructura/sectores" element={<SectoresPage />} />
+        <Route path="/configuracion/estructura/tuneles" element={<TunelesPage />} />
+        <Route path="/configuracion/estructura/valvulas" element={<ValvulasPage />} />
+        <Route path="/configuracion/estructura/cultivos" element={<CultivosPage />} />
+        <Route path="/configuracion/estructura/temporadas" element={<TemporadasPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

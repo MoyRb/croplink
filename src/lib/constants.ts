@@ -56,6 +56,15 @@ export const NAV_SECTIONS: NavItem[] = [
   },
   {
     label: 'Configuración',
-    children: [{ label: 'Estructura', to: '/configuracion/estructura' }],
+    children: [
+      { label: 'Estructura', to: '/configuracion/estructura' },
+      { label: 'Operaciones', to: '/configuracion/estructura/operaciones' },
+      { label: 'Ranchos', to: '/configuracion/estructura/ranchos' },
+      { label: 'Sectores', to: '/configuracion/estructura/sectores' },
+      { label: 'Túneles', to: '/configuracion/estructura/tuneles' },
+      { label: 'Válvulas', to: '/configuracion/estructura/valvulas' },
+      { label: 'Cultivos', to: '/configuracion/estructura/cultivos' },
+      { label: 'Temporadas', to: '/configuracion/estructura/temporadas' },
+    ],
   },
 ]

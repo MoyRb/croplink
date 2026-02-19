@@ -43,7 +43,8 @@ export type RequisicionItem = {
 }
 
 export type RequisicionOperationContext = {
-  producer: { id: string; name: string } | null
+  operation?: { id: string; name: string } | null
+  producer?: { id: string; name: string } | null
   ranch: { id: string; name: string } | null
   crop?: string
   season?: string
