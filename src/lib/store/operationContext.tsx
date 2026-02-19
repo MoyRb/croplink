@@ -1,10 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useEffect, useMemo, useState, type PropsWithChildren } from 'react'
 
-import {
-  OPERATION_CATALOG_UPDATED_EVENT,
-  getCatalog
-} from '../operationCatalog/repo'
+import { OPERATION_CATALOG_UPDATED_EVENT, getCatalog } from '../operationCatalog/repo'
 import type { OperationCatalog } from '../operationCatalog/types'
 
 const STORAGE_KEY = 'croplink.operationContext'
@@ -12,7 +9,7 @@ const STORAGE_KEY = 'croplink.operationContext'
 type NamedSelection = { id: string; name: string }
 
 type OperationContextState = {
-  producer: NamedSelection | null
+  operation: NamedSelection | null
   ranch: NamedSelection | null
   cropSeason: NamedSelection | null
   sector: NamedSelection | null
@@ -24,7 +21,7 @@ type Option = { id: string; name: string }
 
 type OperationContextValue = {
   operationContext: OperationContextState
-  producers: Option[]
+  operations: Option[]
   ranches: Option[]
   cropSeasons: Option[]
   sectors: Option[]
@@ -32,7 +29,7 @@ type OperationContextValue = {
   valves: Option[]
   contextNotice: string
   clearContextNotice: () => void
-  setProducer: (producerId: string) => void
+  setOperation: (operationId: string) => void
   setRanch: (ranchId: string) => void
   setCropSeason: (cropSeasonId: string) => void
   setSector: (sectorId: string) => void
@@ -41,7 +38,7 @@ type OperationContextValue = {
 }
 
 const initialOperationContext: OperationContextState = {
-  producer: null,
+  operation: null,
   ranch: null,
   cropSeason: null,
   sector: null,
@@ -58,18 +55,15 @@ const getStoredOperationContext = (): OperationContextState => {
 
   try {
     const parsed = JSON.parse(stored) as Partial<OperationContextState>
-    return {
-      ...initialOperationContext,
-      ...parsed,
-    }
+    return { ...initialOperationContext, ...parsed }
   } catch {
     return initialOperationContext
   }
 }
 
-const withChildrenReset = (state: OperationContextState, level: 'producer' | 'ranch' | 'cropSeason' | 'sector' | 'tunnel' | 'valve') => {
+const withChildrenReset = (state: OperationContextState, level: 'operation' | 'ranch' | 'cropSeason' | 'sector' | 'tunnel' | 'valve') => {
   const next = { ...state }
-  if (level === 'producer') {
+  if (level === 'operation') {
     next.ranch = null
     next.cropSeason = null
     next.sector = null
@@ -101,22 +95,22 @@ const sanitizeOperationContext = (state: OperationContextState, catalog: Operati
   let next = { ...state }
   let wasReset = false
 
-  if (next.producer && !catalog.producers.some((item) => item.id === next.producer?.id)) {
-    next = withChildrenReset({ ...next, producer: null }, 'producer')
+  if (next.operation && !catalog.operations.some((item) => item.id === next.operation?.id)) {
+    next = withChildrenReset({ ...next, operation: null }, 'operation')
     wasReset = true
   }
 
   if (next.ranch) {
     const ranch = catalog.ranches.find((item) => item.id === next.ranch?.id)
-    if (!ranch || ranch.producerId !== next.producer?.id) {
+    if (!ranch || ranch.operationId !== next.operation?.id) {
       next = withChildrenReset({ ...next, ranch: null }, 'ranch')
       wasReset = true
     }
   }
 
   if (next.cropSeason) {
-    const cropSeason = catalog.cropSeasons.find((item) => item.id === next.cropSeason?.id)
-    if (!cropSeason || cropSeason.ranchId !== next.ranch?.id) {
+    const assignment = catalog.ranchCropSeasons.find((item) => item.id === next.cropSeason?.id)
+    if (!assignment || assignment.ranchId !== next.ranch?.id) {
       next = withChildrenReset({ ...next, cropSeason: null }, 'cropSeason')
       wasReset = true
     }
@@ -140,7 +134,7 @@ const sanitizeOperationContext = (state: OperationContextState, catalog: Operati
 
   if (next.valve) {
     const valve = catalog.valves.find((item) => item.id === next.valve?.id)
-    if (!valve || valve.tunnelId !== next.tunnel?.id) {
+    if (!valve || valve.sectorId !== next.sector?.id || (next.tunnel?.id ? valve.tunnelId !== next.tunnel.id : Boolean(valve.tunnelId))) {
       next = withChildrenReset({ ...next, valve: null }, 'valve')
       wasReset = true
     }
@@ -163,9 +157,7 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
       setCatalog(nextCatalog)
       setOperationContext((prev) => {
         const result = sanitizeOperationContext(prev, nextCatalog)
-        if (result.wasReset) {
-          setContextNotice('El elemento seleccionado ya no existe, se reinició el contexto.')
-        }
+        if (result.wasReset) setContextNotice('El elemento seleccionado ya no existe, se reinició el contexto.')
         return result.next
       })
     }
@@ -178,19 +170,23 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
     }
   }, [])
 
-  const producers = useMemo(() => catalog.producers.map((item) => ({ id: item.id, name: item.name })), [catalog.producers])
+  const operations = useMemo(() => catalog.operations.map((item) => ({ id: item.id, name: item.name })), [catalog.operations])
 
   const ranches = useMemo(
-    () => catalog.ranches.filter((item) => item.producerId === operationContext.producer?.id).map((item) => ({ id: item.id, name: item.name })),
-    [catalog.ranches, operationContext.producer?.id],
+    () => catalog.ranches.filter((item) => item.operationId === operationContext.operation?.id).map((item) => ({ id: item.id, name: item.name })),
+    [catalog.ranches, operationContext.operation?.id],
   )
 
   const cropSeasons = useMemo(
     () =>
-      catalog.cropSeasons
+      catalog.ranchCropSeasons
         .filter((item) => item.ranchId === operationContext.ranch?.id)
-        .map((item) => ({ id: item.id, name: `${item.crop} · ${item.seasonLabel}` })),
-    [catalog.cropSeasons, operationContext.ranch?.id],
+        .map((item) => {
+          const crop = catalog.crops.find((entry) => entry.id === item.cropId)?.name ?? 'Cultivo'
+          const season = catalog.seasons.find((entry) => entry.id === item.seasonId)?.name ?? 'Temporada'
+          return { id: item.id, name: `${crop} · ${season}` }
+        }),
+    [catalog.ranchCropSeasons, catalog.crops, catalog.seasons, operationContext.ranch?.id],
   )
 
   const sectors = useMemo(
@@ -203,75 +199,45 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
     [catalog.tunnels, operationContext.sector?.id],
   )
 
-  const valves = useMemo(
-    () => catalog.valves.filter((item) => item.tunnelId === operationContext.tunnel?.id).map((item) => ({ id: item.id, name: item.name })),
-    [catalog.valves, operationContext.tunnel?.id],
-  )
+  const valves = useMemo(() => {
+    if (!operationContext.sector) return []
+    return catalog.valves
+      .filter((item) => item.sectorId === operationContext.sector?.id && (operationContext.tunnel ? item.tunnelId === operationContext.tunnel.id : !item.tunnelId))
+      .map((item) => ({ id: item.id, name: item.name }))
+  }, [catalog.valves, operationContext.sector, operationContext.tunnel])
 
-  const setProducer = (producerId: string) => {
-    const producer = catalog.producers.find((item) => item.id === producerId) ?? null
-    setOperationContext({
-      producer: producer ? { id: producer.id, name: producer.name } : null,
-      ranch: null,
-      cropSeason: null,
-      sector: null,
-      tunnel: null,
-      valve: null,
-    })
+  const setOperation = (operationId: string) => {
+    const operation = catalog.operations.find((item) => item.id === operationId) ?? null
+    setOperationContext({ operation: operation ? { id: operation.id, name: operation.name } : null, ranch: null, cropSeason: null, sector: null, tunnel: null, valve: null })
   }
 
   const setRanch = (ranchId: string) => {
-    const ranch = catalog.ranches.find((item) => item.id === ranchId && item.producerId === operationContext.producer?.id) ?? null
-    setOperationContext((prev) => ({
-      ...prev,
-      ranch: ranch ? { id: ranch.id, name: ranch.name } : null,
-      cropSeason: null,
-      sector: null,
-      tunnel: null,
-      valve: null,
-    }))
+    const ranch = catalog.ranches.find((item) => item.id === ranchId && item.operationId === operationContext.operation?.id) ?? null
+    setOperationContext((prev) => ({ ...prev, ranch: ranch ? { id: ranch.id, name: ranch.name } : null, cropSeason: null, sector: null, tunnel: null, valve: null }))
   }
 
   const setCropSeason = (cropSeasonId: string) => {
-    const cropSeason = catalog.cropSeasons.find(
-      (item) => item.id === cropSeasonId && item.ranchId === operationContext.ranch?.id,
-    )
-    setOperationContext((prev) => ({
-      ...prev,
-      cropSeason: cropSeason
-        ? { id: cropSeason.id, name: `${cropSeason.crop} · ${cropSeason.seasonLabel}` }
-        : null,
-      sector: null,
-      tunnel: null,
-      valve: null,
-    }))
+    const assignment = catalog.ranchCropSeasons.find((item) => item.id === cropSeasonId && item.ranchId === operationContext.ranch?.id)
+    const crop = catalog.crops.find((entry) => entry.id === assignment?.cropId)?.name ?? ''
+    const season = catalog.seasons.find((entry) => entry.id === assignment?.seasonId)?.name ?? ''
+    setOperationContext((prev) => ({ ...prev, cropSeason: assignment ? { id: assignment.id, name: `${crop} · ${season}` } : null, sector: null, tunnel: null, valve: null }))
   }
 
   const setSector = (sectorId: string) => {
     const sector = catalog.sectors.find((item) => item.id === sectorId && item.ranchId === operationContext.ranch?.id)
-    setOperationContext((prev) => ({
-      ...prev,
-      sector: sector ? { id: sector.id, name: sector.name } : null,
-      tunnel: null,
-      valve: null,
-    }))
+    setOperationContext((prev) => ({ ...prev, sector: sector ? { id: sector.id, name: sector.name } : null, tunnel: null, valve: null }))
   }
 
   const setTunnel = (tunnelId: string) => {
     const tunnel = catalog.tunnels.find((item) => item.id === tunnelId && item.sectorId === operationContext.sector?.id)
-    setOperationContext((prev) => ({
-      ...prev,
-      tunnel: tunnel ? { id: tunnel.id, name: tunnel.name } : null,
-      valve: null,
-    }))
+    setOperationContext((prev) => ({ ...prev, tunnel: tunnel ? { id: tunnel.id, name: tunnel.name } : null, valve: null }))
   }
 
   const setValve = (valveId: string) => {
-    const valve = catalog.valves.find((item) => item.id === valveId && item.tunnelId === operationContext.tunnel?.id)
-    setOperationContext((prev) => ({
-      ...prev,
-      valve: valve ? { id: valve.id, name: valve.name } : null,
-    }))
+    const valve = catalog.valves.find(
+      (item) => item.id === valveId && item.sectorId === operationContext.sector?.id && (operationContext.tunnel ? item.tunnelId === operationContext.tunnel.id : !item.tunnelId),
+    )
+    setOperationContext((prev) => ({ ...prev, valve: valve ? { id: valve.id, name: valve.name } : null }))
   }
 
   useEffect(() => {
@@ -281,7 +247,7 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
 
   const value: OperationContextValue = {
     operationContext,
-    producers,
+    operations,
     ranches,
     cropSeasons,
     sectors,
@@ -289,7 +255,7 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
     valves,
     contextNotice,
     clearContextNotice: () => setContextNotice(''),
-    setProducer,
+    setOperation,
     setRanch,
     setCropSeason,
     setSector,
@@ -302,8 +268,6 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
 
 export function useOperationContext() {
   const context = useContext(OperationContext)
-  if (!context) {
-    throw new Error('useOperationContext must be used within OperationContextProvider')
-  }
+  if (!context) throw new Error('useOperationContext must be used within OperationContextProvider')
   return context
 }
