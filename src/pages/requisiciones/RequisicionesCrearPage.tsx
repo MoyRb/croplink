@@ -17,6 +17,7 @@ import {
   type UseCase,
 } from '../../lib/plaguicidas'
 import { useRequisicionesStore, type NuevaRequisicion, type RequisicionItem } from '../../lib/store/requisiciones'
+import { useOperationContext } from '../../lib/store/operationContext'
 import { cn } from '../../lib/utils'
 
 const unidades = ['kg', 'L', 'pza'] as const
@@ -49,6 +50,7 @@ export function RequisicionesCrearPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { addRequisicion } = useRequisicionesStore()
+  const { operationContext } = useOperationContext()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const prefill = useMemo(() => location.state?.prefill as Partial<NuevaRequisicion> | undefined, [location.state])
@@ -66,6 +68,7 @@ export function RequisicionesCrearPage() {
   const [selectedOffer, setSelectedOffer] = useState<SelectedOfferPayload | null>(null)
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'offer-selected')
   const [duplicateToastVisible, setDuplicateToastVisible] = useState(false)
+  const [missingRanchToastVisible, setMissingRanchToastVisible] = useState(false)
 
   const [cultivo, setCultivo] = useState<(typeof cultivosDisponibles)[number]>('Arándano')
   const [tipoProblema, setTipoProblema] = useState<(typeof tiposPlaga)[number]>('Plaga')
@@ -249,6 +252,11 @@ export function RequisicionesCrearPage() {
       return
     }
 
+    if (!operationContext.ranch) {
+      setMissingRanchToastVisible(true)
+      return
+    }
+
     const unitRates = {
       kg: 180,
       L: 220,
@@ -271,6 +279,7 @@ export function RequisicionesCrearPage() {
       prioridad,
       notas: notas.trim() || undefined,
       items: itemsRequisicion,
+      operationContext,
       total,
       adjunto: archivo
         ? {
@@ -398,6 +407,12 @@ export function RequisicionesCrearPage() {
     return () => window.clearTimeout(timer)
   }, [duplicateToastVisible])
 
+  useEffect(() => {
+    if (!missingRanchToastVisible) return
+    const timer = window.setTimeout(() => setMissingRanchToastVisible(false), 2500)
+    return () => window.clearTimeout(timer)
+  }, [missingRanchToastVisible])
+
   const estimatedTotal = selectedOffer
     ? selectedOffer.offer.precioTotal
     : cantidadNumero * (unidad === 'kg' ? 180 : unidad === 'L' ? 220 : 350)
@@ -426,6 +441,7 @@ export function RequisicionesCrearPage() {
 
       {toastVisible ? <Toast variant="success">Oferta seleccionada</Toast> : null}
       {duplicateToastVisible ? <Toast variant="info">Ya agregado</Toast> : null}
+      {missingRanchToastVisible ? <Toast variant="error">Selecciona un rancho antes de crear la requisición.</Toast> : null}
 
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
