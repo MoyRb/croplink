@@ -15,7 +15,6 @@ import {
   upsertPago,
   type Empleado,
   type MetodoPago,
-  type PeriodoNomina,
   type RegistroPago,
 } from '../../lib/store/nomina'
 

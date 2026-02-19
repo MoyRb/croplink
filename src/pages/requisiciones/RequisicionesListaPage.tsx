@@ -49,6 +49,7 @@ export function RequisicionesListaPage() {
   const { requisiciones } = useRequisicionesStore()
   const [activeStatus, setActiveStatus] = useState<RequisicionEstado | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
+  const [ranchFilter, setRanchFilter] = useState('Todos')
   const [selected, setSelected] = useState<Requisicion | null>(null)
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'created')
 
@@ -65,6 +66,16 @@ export function RequisicionesListaPage() {
     return () => window.clearTimeout(timer)
   }, [toastVisible])
 
+  const ranchOptions = useMemo(() => {
+    const ranches = new Set<string>()
+    requisiciones.forEach((requisicion) => {
+      if (requisicion.operationContext?.ranch?.name) {
+        ranches.add(requisicion.operationContext.ranch.name)
+      }
+    })
+    return ['Todos', ...Array.from(ranches).sort((a, b) => a.localeCompare(b, 'es'))]
+  }, [requisiciones])
+
   const filteredRequisiciones = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
     return requisiciones.filter((requisicion) => {
@@ -73,9 +84,11 @@ export function RequisicionesListaPage() {
         !normalizedSearch ||
         requisicion.id.toLowerCase().includes(normalizedSearch) ||
         requisicion.producto.toLowerCase().includes(normalizedSearch)
-      return matchesStatus && matchesSearch
+      const ranchName = requisicion.operationContext?.ranch?.name ?? 'Sin rancho'
+      const matchesRanch = ranchFilter === 'Todos' || ranchFilter === ranchName
+      return matchesStatus && matchesSearch && matchesRanch
     })
-  }, [activeStatus, requisiciones, search])
+  }, [activeStatus, ranchFilter, requisiciones, search])
 
   const handleDuplicate = (requisicion: Requisicion) => {
     navigate('/requisiciones/crear', {
@@ -111,12 +124,25 @@ export function RequisicionesListaPage() {
               <h2 className="text-lg font-semibold text-gray-900">Solicitudes activas</h2>
               <p className="text-sm text-gray-500">Gestiona prioridades y aprobaciones.</p>
             </div>
-            <Input
-              className="w-full max-w-xs"
-              placeholder="Buscar por ID o producto"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
+            <div className="flex w-full max-w-xl gap-2">
+              <Input
+                className="w-full"
+                placeholder="Buscar por ID o producto"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <select
+                className="rounded-full border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-gray-700 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6]"
+                value={ranchFilter}
+                onChange={(event) => setRanchFilter(event.target.value)}
+              >
+                {ranchOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option === 'Todos' ? 'Todos los ranchos' : option}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {statusTabs.map((status) => (
@@ -143,6 +169,8 @@ export function RequisicionesListaPage() {
                 <TableHead>Producto</TableHead>
                 <TableHead>Cantidad</TableHead>
                 <TableHead>Estado</TableHead>
+                <TableHead>Rancho</TableHead>
+                <TableHead>Cultivo</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Fecha</TableHead>
               </tr>
@@ -162,6 +190,8 @@ export function RequisicionesListaPage() {
                   <TableCell>
                     <Badge className={statusBadgeStyles[row.estado]}>{row.estado}</Badge>
                   </TableCell>
+                  <TableCell>{row.operationContext?.ranch?.name ?? 'Sin rancho'}</TableCell>
+                  <TableCell>{row.operationContext?.crop || 'Sin cultivo'}</TableCell>
                   <TableCell>{formatCurrency(row.total)}</TableCell>
                   <TableCell>{formatDate(row.fecha)}</TableCell>
                 </TableRow>
@@ -223,6 +253,14 @@ export function RequisicionesListaPage() {
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Fecha</span>
                 <span className="font-medium text-gray-900">{formatDate(selected.fecha)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Rancho</span>
+                <span className="font-medium text-gray-900">{selected.operationContext?.ranch?.name ?? 'Sin rancho'}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-gray-500">Cultivo</span>
+                <span className="font-medium text-gray-900">{selected.operationContext?.crop || 'Sin cultivo'}</span>
               </div>
               <div>
                 <span className="text-gray-500">Notas</span>

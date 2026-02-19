@@ -42,6 +42,16 @@ export type RequisicionItem = {
   metadata: RequisicionItemMetadata
 }
 
+export type RequisicionOperationContext = {
+  producer: { id: string; name: string } | null
+  ranch: { id: string; name: string } | null
+  crop: string
+  season?: string
+  sector?: string
+  tunnel?: string
+  valve?: string
+}
+
 export type Requisicion = {
   id: string
   producto: string
@@ -55,6 +65,7 @@ export type Requisicion = {
   fecha: string
   adjunto?: RequisicionAdjunto
   items?: RequisicionItem[]
+  operationContext?: RequisicionOperationContext
 }
 
 export type NuevaRequisicion = Omit<Requisicion, 'id' | 'estado' | 'fecha' | 'total'> & {
@@ -211,6 +222,7 @@ export function useRequisicionesStore() {
         fecha: data.fecha ?? new Date().toISOString().slice(0, 10),
         adjunto: data.adjunto,
         items: data.items ?? [],
+        operationContext: data.operationContext,
       }
 
       return [nueva, ...prev]
