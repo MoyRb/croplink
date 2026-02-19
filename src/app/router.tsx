@@ -7,6 +7,7 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage'
 import { LoginPage } from '../pages/login/LoginPage'
 import { MarketplaceCompararPage } from '../pages/marketplace/MarketplaceCompararPage'
 import { MonitoreosCrearPage } from '../pages/monitoreos/MonitoreosCrearPage'
+import { MonitoreosIniciarPage } from '../pages/monitoreos/MonitoreosIniciarPage'
 import { MonitoreosListaPage } from '../pages/monitoreos/MonitoreosListaPage'
 import { MonitoreosResumenPage } from '../pages/monitoreos/MonitoreosResumenPage'
 import { MonitoreosSesionPage } from '../pages/monitoreos/MonitoreosSesionPage'
@@ -85,6 +86,7 @@ export function AppRouter() {
         <Route path="/monitoreos" element={<Navigate to="/monitoreos/lista" replace />} />
         <Route path="/monitoreos/lista" element={<MonitoreosListaPage />} />
         <Route path="/monitoreos/crear" element={<MonitoreosCrearPage />} />
+        <Route path="/monitoreos/iniciar/:sessionId" element={<MonitoreosIniciarPage />} />
         <Route path="/monitoreos/sesion/:id" element={<MonitoreosSesionPage />} />
         <Route path="/monitoreos/resumen/:id" element={<MonitoreosResumenPage />} />
         <Route
