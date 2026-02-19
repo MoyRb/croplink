@@ -40,9 +40,8 @@ export const NAV_SECTIONS: NavItem[] = [
   {
     label: 'Monitoreos',
     children: [
-      { label: 'Iniciar', to: '/monitoreos/iniciar' },
-      { label: 'Bitácora', to: '/monitoreos/bitacora' },
-      { label: 'Gráficas', to: '/monitoreos/graficas' },
+      { label: 'Lista', to: '/monitoreos/lista' },
+      { label: 'Crear', to: '/monitoreos/crear' },
     ],
   },
   {
