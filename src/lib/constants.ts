@@ -7,7 +7,7 @@ export const APP_NAME = BRAND.product
 type NavItem = {
   label: string
   to?: string
-  children?: { label: string; to: string }[]
+  items?: { label: string; to: string }[]
   roles?: UserRole[]
 }
 
@@ -18,7 +18,7 @@ export const NAV_SECTIONS: NavItem[] = [
   },
   {
     label: 'Requisiciones',
-    children: [
+    items: [
       { label: 'Lista', to: '/requisiciones/lista' },
       { label: 'Crear', to: '/requisiciones/crear' },
       { label: 'Aprobaciones', to: '/requisiciones/aprobaciones' },
@@ -31,7 +31,7 @@ export const NAV_SECTIONS: NavItem[] = [
   {
     label: 'Activos',
     roles: ACTIVOS_ALLOWED_ROLES,
-    children: [
+    items: [
       { label: 'Lista', to: '/activos/lista' },
       { label: 'Nuevo', to: '/activos/nuevo' },
       { label: 'Reportes', to: '/activos/reportes' },
@@ -39,7 +39,7 @@ export const NAV_SECTIONS: NavItem[] = [
   },
   {
     label: 'Monitoreos',
-    children: [
+    items: [
       { label: 'Lista', to: '/monitoreos/lista' },
       { label: 'Crear', to: '/monitoreos/crear' },
     ],
@@ -47,7 +47,7 @@ export const NAV_SECTIONS: NavItem[] = [
   {
     label: 'Nómina',
     roles: ['AGRICOLA_PRODUCTOR', 'AGROQUIMICA_ADMIN'],
-    children: [
+    items: [
       { label: 'Empleados', to: '/nomina/empleados' },
       { label: 'Periodos', to: '/nomina/periodos' },
       { label: 'Pagos', to: '/nomina/pagos' },
@@ -56,7 +56,7 @@ export const NAV_SECTIONS: NavItem[] = [
   },
   {
     label: 'Configuración',
-    children: [
+    items: [
       { label: 'Estructura', to: '/configuracion/estructura' },
       { label: 'Operaciones', to: '/configuracion/estructura/operaciones' },
       { label: 'Ranchos', to: '/configuracion/estructura/ranchos' },
