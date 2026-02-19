@@ -64,6 +64,8 @@ export function MonitoreosCrearPage() {
     navigate(`/monitoreos/sesion/${session.id}`)
   }
 
+  const muestraTotal = config.puntosPorSector * config.plantasPorPunto
+
   return (
     <div className="space-y-6">
       <div>
@@ -180,25 +182,52 @@ export function MonitoreosCrearPage() {
       <Card className="space-y-4">
         <h2 className="font-semibold text-gray-900">Muestreo y tipo</h2>
         <div className="grid gap-3 md:grid-cols-3">
-          <Input
-            type="number"
-            value={config.puntosPorSector}
-            onChange={(event) => setConfig((prev) => ({ ...prev, puntosPorSector: Number(event.target.value) || 1 }))}
-            placeholder="Puntos por sector"
-          />
-          <Input
-            type="number"
-            value={config.plantasPorPunto}
-            onChange={(event) => setConfig((prev) => ({ ...prev, plantasPorPunto: Number(event.target.value) || 1 }))}
-            placeholder="Plantas por punto"
-          />
-          <Input
-            type="number"
-            value={config.metrosMuestreados}
-            onChange={(event) => setConfig((prev) => ({ ...prev, metrosMuestreados: Number(event.target.value) || 1 }))}
-            placeholder="Metros muestreados"
-          />
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="puntos-por-sector">
+              Puntos por sector
+            </label>
+            <Input
+              id="puntos-por-sector"
+              type="number"
+              min={1}
+              step={1}
+              value={config.puntosPorSector}
+              onChange={(event) => setConfig((prev) => ({ ...prev, puntosPorSector: Number(event.target.value) || 1 }))}
+            />
+            <p className="text-xs text-gray-500">Cantidad de puntos de evaluación dentro del sector.</p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="plantas-por-punto">
+              Plantas por punto
+            </label>
+            <Input
+              id="plantas-por-punto"
+              type="number"
+              min={1}
+              step={1}
+              value={config.plantasPorPunto}
+              onChange={(event) => setConfig((prev) => ({ ...prev, plantasPorPunto: Number(event.target.value) || 1 }))}
+            />
+            <p className="text-xs text-gray-500">Número de plantas que revisarás en cada punto.</p>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="metros-muestreados">
+              Metros muestreados (m)
+            </label>
+            <Input
+              id="metros-muestreados"
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={config.metrosMuestreados}
+              onChange={(event) => setConfig((prev) => ({ ...prev, metrosMuestreados: Number(event.target.value) || 1 }))}
+            />
+            <p className="text-xs text-gray-500">Longitud del tramo evaluado por punto.</p>
+          </div>
         </div>
+        <p className="text-sm text-gray-600">
+          Muestra total: {config.puntosPorSector} × {config.plantasPorPunto} = {muestraTotal} plantas
+        </p>
 
         <div className="flex gap-2">
           <Button
