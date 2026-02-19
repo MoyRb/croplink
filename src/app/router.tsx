@@ -21,6 +21,7 @@ import { ActivosMantenimientosPage } from '../pages/activos/ActivosMantenimiento
 import { ActivosNuevoPage } from '../pages/activos/ActivosNuevoPage'
 import { ActivosReportesPage } from '../pages/activos/ActivosReportesPage'
 import { ACTIVOS_ALLOWED_ROLES, NOMINA_ALLOWED_ROLES } from '../lib/auth/roles'
+import { EstructuraPage } from '../pages/configuracion/EstructuraPage'
 
 export function AppRouter() {
   return (
@@ -116,7 +117,8 @@ export function AppRouter() {
             </RequireRole>
           }
         />
-        <Route path="/configuracion" element={<DashboardPage />} />
+        <Route path="/configuracion" element={<Navigate to="/configuracion/estructura" replace />} />
+        <Route path="/configuracion/estructura" element={<EstructuraPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

@@ -57,6 +57,6 @@ export const NAV_SECTIONS: NavItem[] = [
   },
   {
     label: 'Configuración',
-    to: '/configuracion',
+    children: [{ label: 'Estructura', to: '/configuracion/estructura' }],
   },
 ]
