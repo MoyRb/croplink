@@ -61,7 +61,7 @@ export type SearchTargetsParams = {
 
 export type SearchRecommendationsParams = {
   crop: string
-  targetType: PlaguicidaTargetType
+  targetType: PlaguicidaTargetType | 'plaga' | 'enfermedad'
   targetCommonNorm: string
   market?: PlaguicidaMarketFilter
   category?: string
@@ -78,11 +78,14 @@ const normalizeText = (input: unknown) =>
 const normalizeType = (value: string): PlaguicidaTargetType =>
   normalizeText(value).startsWith('enfermedad') ? 'Enfermedad' : 'Plaga'
 
-const cropIncludes = (cropField: string, selectedCrop: string) =>
-  cropField
+const cropIncludes = (cropField: string, selectedCrop: string) => {
+  const normalizedSelectedCrop = normalizeText(selectedCrop)
+
+  return cropField
     .split(',')
-    .map((item) => item.trim())
-    .includes(selectedCrop)
+    .map((item) => normalizeText(item))
+    .includes(normalizedSelectedCrop)
+}
 
 let dataPromise: Promise<PlaguicidasData> | null = null
 
@@ -160,14 +163,16 @@ export const searchPlaguicidasRecommendations = async ({
 }: SearchRecommendationsParams) => {
   const { products, targets, useCases } = await loadPlaguicidasData()
 
+  const normalizedCrop = normalizeText(crop)
+  const normalizedTargetType = normalizeText(targetType)
   const normalizedTarget = normalizeText(targetCommonNorm)
   const productByName = new Map(products.map((product) => [normalizeText(product.commercial_name), product]))
 
   const matchingTargetCategories = new Set(
     targets
       .filter((target) => {
-        if (!cropIncludes(target.crop, crop)) return false
-        if (normalizeType(target.target_type) !== targetType) return false
+        if (!cropIncludes(target.crop, normalizedCrop)) return false
+        if (normalizeText(normalizeType(target.target_type)) !== normalizedTargetType) return false
 
         return normalizeText(target.target_common_norm || target.target_common) === normalizedTarget
       })
@@ -177,8 +182,8 @@ export const searchPlaguicidasRecommendations = async ({
 
   const results = useCases
     .filter((item) => {
-      if (!cropIncludes(item.crop, crop)) return false
-      if (normalizeType(item.target_type) !== targetType) return false
+      if (!cropIncludes(item.crop, normalizedCrop)) return false
+      if (normalizeText(normalizeType(item.target_type)) !== normalizedTargetType) return false
 
       const itemTarget = normalizeText(item.target_common_norm || item.target_common)
       if (itemTarget !== normalizedTarget) return false
