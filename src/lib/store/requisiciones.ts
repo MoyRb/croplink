@@ -31,7 +31,17 @@ export type RequisicionItemMetadata = {
   sheet?: string
 }
 
-export type RequisicionItemType = 'AGROQUIMICO' | 'INSUMO_GENERAL'
+export type RequisicionItemType = 'AGROQUIMICO' | 'INSUMO_GENERAL' | 'BENEFICO'
+
+export type RequisicionBeneficoMetadata = {
+  especie: string
+  presentacion: string
+  dosis_por_ha: number
+  superficie_ha: number
+  total: number
+  fecha_programada?: string
+  notas?: string
+}
 
 export type RequisicionItem = {
   id: string
@@ -43,6 +53,7 @@ export type RequisicionItem = {
   unit: string
   notes?: string
   metadata?: RequisicionItemMetadata
+  benefico?: RequisicionBeneficoMetadata
 }
 
 export type RequisicionOperationContext = {
