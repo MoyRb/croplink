@@ -71,3 +71,33 @@ export const collectThresholdViolations = (session: MonitoringSession): Threshol
 
   return violations
 }
+
+
+export const calcAverageRootLength = (session: MonitoringSession) => {
+  const values = session.sectors.flatMap((sector) =>
+    sector.points.flatMap((point) =>
+      point.plantas
+        .map((planta) => Number(planta.metrics.raiz_longitud_cm))
+        .filter((value) => Number.isFinite(value)),
+    ),
+  )
+
+  if (values.length === 0) return null
+  return values.reduce((acc, value) => acc + value, 0) / values.length
+}
+
+export const countRootVigor = (session: MonitoringSession) => {
+  const counts: Record<string, number> = {}
+
+  session.sectors.forEach((sector) => {
+    sector.points.forEach((point) => {
+      point.plantas.forEach((planta) => {
+        const vigor = planta.metrics.raiz_vigor
+        if (typeof vigor !== 'string' || !vigor.trim()) return
+        counts[vigor] = (counts[vigor] ?? 0) + 1
+      })
+    })
+  })
+
+  return counts
+}
