@@ -51,7 +51,7 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
     icon: Building2,
     matchPaths: ['/inventario'],
     items: [
-      { label: 'Vista general', to: '/inventario' },
+      { label: 'Compras generales', to: '/inventario/insumos' },
       { label: 'Movimientos', to: '/inventario/movimientos' },
     ],
   },

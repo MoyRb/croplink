@@ -31,15 +31,18 @@ export type RequisicionItemMetadata = {
   sheet?: string
 }
 
+export type RequisicionItemType = 'AGROQUIMICO' | 'INSUMO_GENERAL'
+
 export type RequisicionItem = {
   id: string
+  tipo: RequisicionItemType
   product_id: string
   commercial_name: string
-  active_ingredient: string
+  active_ingredient?: string
   quantity: number
   unit: string
   notes?: string
-  metadata: RequisicionItemMetadata
+  metadata?: RequisicionItemMetadata
 }
 
 export type RequisicionOperationContext = {

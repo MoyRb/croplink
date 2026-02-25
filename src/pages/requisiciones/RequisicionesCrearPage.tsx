@@ -16,6 +16,7 @@ import {
   type Target,
   type UseCase,
 } from '../../lib/plaguicidas'
+import { getInventoryItems, type InventoryItem } from '../../lib/store/inventory'
 import { useRequisicionesStore, type NuevaRequisicion, type RequisicionItem } from '../../lib/store/requisiciones'
 import { useOperationContext } from '../../lib/store/operationContext'
 import { cn } from '../../lib/utils'
@@ -86,6 +87,11 @@ export function RequisicionesCrearPage() {
   const [searchIndex, setSearchIndex] = useState<SearchIndex | null>(null)
   const [itemsRequisicion, setItemsRequisicion] = useState<RequisicionItem[]>([])
   const [hasSearched, setHasSearched] = useState(false)
+  const [inventoryItems] = useState<InventoryItem[]>(() => getInventoryItems())
+  const [insumoQuery, setInsumoQuery] = useState('')
+  const [insumoSeleccionado, setInsumoSeleccionado] = useState<InventoryItem | null>(null)
+  const [insumoCantidad, setInsumoCantidad] = useState('1')
+  const [insumoUnidad, setInsumoUnidad] = useState('')
 
   const cantidadNumero = Number(cantidad)
   const isCompareDisabled = !producto.trim() || !cantidadNumero || cantidadNumero <= 0
@@ -105,7 +111,7 @@ export function RequisicionesCrearPage() {
   const resistanceWarning = useMemo(() => {
     const groups = new Map<string, number>()
     itemsRequisicion.forEach((item) => {
-      const key = (item.metadata.resistance_class || '').trim()
+      const key = (item.metadata?.resistance_class || '').trim()
       if (!key) return
       groups.set(key, (groups.get(key) ?? 0) + 1)
     })
@@ -120,8 +126,9 @@ export function RequisicionesCrearPage() {
     setItemsRequisicion((prev) => {
       const alreadyExists = prev.some(
         (existing) =>
+          existing.tipo === 'AGROQUIMICO' &&
           existing.product_id === productId &&
-          existing.metadata.target_common_norm === targetSeleccionado.target_common_norm,
+          existing.metadata?.target_common_norm === targetSeleccionado.target_common_norm,
       )
 
       if (alreadyExists) {
@@ -131,6 +138,7 @@ export function RequisicionesCrearPage() {
 
       const next: RequisicionItem = {
         id: `${productId}-${targetSeleccionado.target_common_norm}-${Date.now()}`,
+        tipo: 'AGROQUIMICO',
         product_id: productId,
         commercial_name: item.commercial_name,
         active_ingredient: item.active_ingredient || '—',
@@ -156,6 +164,43 @@ export function RequisicionesCrearPage() {
 
       return [...prev, next]
     })
+  }
+
+  const handleAgregarInsumoGeneral = () => {
+    if (!insumoSeleccionado) return
+
+    const qty = Number(insumoCantidad)
+    if (!qty || qty <= 0) return
+
+    setItemsRequisicion((prev) => {
+      const alreadyExists = prev.some(
+        (existing) => existing.tipo === 'INSUMO_GENERAL' && existing.product_id === insumoSeleccionado.id,
+      )
+
+      if (alreadyExists) {
+        setDuplicateToastVisible(true)
+        return prev
+      }
+
+      const next: RequisicionItem = {
+        id: `general-${insumoSeleccionado.id}-${Date.now()}`,
+        tipo: 'INSUMO_GENERAL',
+        product_id: insumoSeleccionado.id,
+        commercial_name: insumoSeleccionado.nombre,
+        quantity: qty,
+        unit: insumoUnidad.trim() || insumoSeleccionado.unidad,
+        notes: insumoSeleccionado.proveedor_sugerido
+          ? `Proveedor sugerido: ${insumoSeleccionado.proveedor_sugerido}`
+          : undefined,
+      }
+
+      return [...prev, next]
+    })
+
+    setInsumoQuery('')
+    setInsumoSeleccionado(null)
+    setInsumoCantidad('1')
+    setInsumoUnidad('')
   }
 
   const handleUpdateItem = (itemId: string, changes: Partial<Pick<RequisicionItem, 'quantity' | 'unit' | 'notes'>>) => {
@@ -412,6 +457,15 @@ export function RequisicionesCrearPage() {
     const timer = window.setTimeout(() => setMissingRanchToastVisible(false), 2500)
     return () => window.clearTimeout(timer)
   }, [missingRanchToastVisible])
+
+  const insumoOptions = useMemo(() => {
+    const normalizedQuery = insumoQuery.trim().toLowerCase()
+    if (!normalizedQuery) return [] as InventoryItem[]
+
+    return inventoryItems
+      .filter((item) => [item.sku, item.nombre, item.categoria].some((value) => value.toLowerCase().includes(normalizedQuery)))
+      .slice(0, 8)
+  }, [insumoQuery, inventoryItems])
 
   const estimatedTotal = selectedOffer
     ? selectedOffer.offer.precioTotal
@@ -694,6 +748,62 @@ export function RequisicionesCrearPage() {
               </table>
             </div>
 
+            <div className="mt-5 rounded-2xl border border-[#E5E7EB] bg-white p-4">
+              <p className="text-xs uppercase text-gray-400">Compras generales</p>
+              <p className="text-sm text-gray-600">Agregar insumo general desde inventario (sin asistente fitosanitario).</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-4">
+                <div className="relative md:col-span-2">
+                  <label className="text-sm font-medium text-gray-700">Buscar insumo</label>
+                  <Input
+                    className="mt-1"
+                    placeholder="SKU o nombre"
+                    value={insumoQuery}
+                    onChange={(event) => {
+                      setInsumoQuery(event.target.value)
+                      setInsumoSeleccionado(null)
+                    }}
+                  />
+                  {insumoOptions.length > 0 && !insumoSeleccionado ? (
+                    <div className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-2xl border border-[#E5E7EB] bg-white p-1 shadow-lg">
+                      {insumoOptions.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className="block w-full rounded-xl px-3 py-2 text-left text-sm hover:bg-gray-50"
+                          onClick={() => {
+                            setInsumoSeleccionado(item)
+                            setInsumoQuery(`${item.nombre} (${item.sku})`)
+                            setInsumoUnidad(item.unidad)
+                          }}
+                        >
+                          <span className="font-medium text-gray-900">{item.nombre}</span>
+                          <span className="ml-2 text-xs text-gray-500">{item.sku} · {item.categoria}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Cantidad</label>
+                  <Input className="mt-1" type="number" min={1} value={insumoCantidad} onChange={(event) => setInsumoCantidad(event.target.value)} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Unidad</label>
+                  <Input className="mt-1" value={insumoUnidad} onChange={(event) => setInsumoUnidad(event.target.value)} />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <p className="text-xs text-gray-500">
+                  {insumoSeleccionado
+                    ? `Stock actual: ${insumoSeleccionado.stock_actual} ${insumoSeleccionado.unidad} · Ubicación: ${insumoSeleccionado.ubicacion}`
+                    : 'Selecciona un insumo para agregarlo a la requisición.'}
+                </p>
+                <Button type="button" variant="secondary" onClick={handleAgregarInsumoGeneral} disabled={!insumoSeleccionado}>
+                  Agregar insumo general
+                </Button>
+              </div>
+            </div>
+
             {itemsRequisicion.length > 0 ? (
               <div className="mt-4 rounded-2xl border border-[#E5E7EB] bg-gray-50 p-4">
                 <div className="flex items-center justify-between">
@@ -706,7 +816,8 @@ export function RequisicionesCrearPage() {
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
                           <p className="font-medium text-gray-900">{item.commercial_name}</p>
-                          <p className="text-xs text-gray-500">{item.active_ingredient}</p>
+                          <p className="text-xs text-gray-500">{item.tipo}</p>
+                          <p className="text-xs text-gray-500">{item.active_ingredient || '—'}</p>
                         </div>
                         <Button type="button" variant="ghost" onClick={() => handleRemoveItem(item.id)}>
                           Quitar
@@ -741,21 +852,25 @@ export function RequisicionesCrearPage() {
                           />
                         </div>
                       </div>
-                      <div className="mt-3 grid gap-2 text-xs text-gray-600 md:grid-cols-2 lg:grid-cols-3">
-                        <p><strong>Crop:</strong> {item.metadata.crop}</p>
-                        <p><strong>Tipo:</strong> {item.metadata.target_type}</p>
-                        <p><strong>Target:</strong> {item.metadata.target_common}</p>
-                        <p><strong>Mercado:</strong> {item.metadata.market}</p>
-                        <p><strong>Resistencia:</strong> {fallbackValue(item.metadata.resistance_class)}</p>
-                        <p><strong>Grupo químico:</strong> {fallbackValue(item.metadata.chemical_group)}</p>
-                        <p><strong>Intervalo seguridad:</strong> {fallbackValue(item.metadata.safety_interval, 'No especificado')}</p>
-                        <p><strong>Reentrada:</strong> {fallbackValue(item.metadata.reentry_period)}</p>
-                        <p><strong>Intervalo aplicaciones:</strong> {fallbackValue(item.metadata.interval_between_applications)}</p>
-                        <p><strong>Máx. aplicaciones:</strong> {fallbackValue(item.metadata.max_applications)}</p>
-                        <p><strong>Registro:</strong> {fallbackValue(item.metadata.registration)}</p>
-                        <p><strong>Observaciones:</strong> {fallbackValue(item.metadata.observations)}</p>
-                        <p><strong>Ficha:</strong> {fallbackValue(item.metadata.sheet)}</p>
-                      </div>
+                      {item.tipo === 'AGROQUIMICO' && item.metadata ? (
+                        <div className="mt-3 grid gap-2 text-xs text-gray-600 md:grid-cols-2 lg:grid-cols-3">
+                          <p><strong>Crop:</strong> {item.metadata.crop}</p>
+                          <p><strong>Tipo:</strong> {item.metadata.target_type}</p>
+                          <p><strong>Target:</strong> {item.metadata.target_common}</p>
+                          <p><strong>Mercado:</strong> {item.metadata.market}</p>
+                          <p><strong>Resistencia:</strong> {fallbackValue(item.metadata.resistance_class)}</p>
+                          <p><strong>Grupo químico:</strong> {fallbackValue(item.metadata.chemical_group)}</p>
+                          <p><strong>Intervalo seguridad:</strong> {fallbackValue(item.metadata.safety_interval, 'No especificado')}</p>
+                          <p><strong>Reentrada:</strong> {fallbackValue(item.metadata.reentry_period)}</p>
+                          <p><strong>Intervalo aplicaciones:</strong> {fallbackValue(item.metadata.interval_between_applications)}</p>
+                          <p><strong>Máx. aplicaciones:</strong> {fallbackValue(item.metadata.max_applications)}</p>
+                          <p><strong>Registro:</strong> {fallbackValue(item.metadata.registration)}</p>
+                          <p><strong>Observaciones:</strong> {fallbackValue(item.metadata.observations)}</p>
+                          <p><strong>Ficha:</strong> {fallbackValue(item.metadata.sheet)}</p>
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-xs text-gray-600">Insumo general agregado desde inventario.</p>
+                      )}
                     </div>
                   ))}
                 </div>

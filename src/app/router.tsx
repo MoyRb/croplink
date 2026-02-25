@@ -6,6 +6,7 @@ import { RequireRole } from './auth/RequireRole'
 import { DashboardPage } from '../pages/dashboard/DashboardPage'
 import { LoginPage } from '../pages/login/LoginPage'
 import { MarketplaceCompararPage } from '../pages/marketplace/MarketplaceCompararPage'
+import { InventarioInsumosPage } from '../pages/inventario/InventarioInsumosPage'
 import { InventarioMovimientosPage } from '../pages/inventario/InventarioMovimientosPage'
 import { MonitoreosCrearPage } from '../pages/monitoreos/MonitoreosCrearPage'
 import { MonitoreosIniciarPage } from '../pages/monitoreos/MonitoreosIniciarPage'
@@ -54,7 +55,8 @@ export function AppRouter() {
         <Route path="/requisiciones/:id/ejecucion/:execId" element={<RequisicionEjecucionPage />} />
         <Route path="/marketplace/comparar" element={<MarketplaceCompararPage />} />
         <Route path="/requisiciones/aprobaciones" element={<RequisicionesListaPage />} />
-        <Route path="/inventario" element={<DashboardPage />} />
+        <Route path="/inventario" element={<Navigate to="/inventario/insumos" replace />} />
+        <Route path="/inventario/insumos" element={<InventarioInsumosPage />} />
         <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
         <Route
           path="/activos/lista"

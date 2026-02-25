@@ -1,13 +1,16 @@
-export type InventoryMovementType = 'IN' | 'OUT' | 'RETURN' | 'WASTE'
+export type InventoryMovementType = 'IN' | 'OUT' | 'ADJUST' | 'RETURN' | 'WASTE'
 export type InventoryRefType = 'REQUISICION' | 'EJECUCION' | 'AJUSTE'
 
 export type InventoryItem = {
   id: string
   sku: string
   nombre: string
+  categoria: string
   unidad: string
   stock_actual: number
   stock_minimo: number
+  ubicacion: string
+  proveedor_sugerido?: string
   lot_id?: string
   expiration_date?: string
 }
@@ -19,15 +22,15 @@ export type InventoryMovement = {
   itemId: string
   qty: number
   unit: string
-  refType: InventoryRefType
-  refId: string
   notes?: string
+  refType?: InventoryRefType
+  refId?: string
   lot_id?: string
   expiration_date?: string
 }
 
-const INVENTORY_ITEMS_KEY = 'inventory_items'
-const INVENTORY_MOVEMENTS_KEY = 'inventory_movements'
+const INVENTORY_ITEMS_KEY = 'croplink:inventory:items'
+const INVENTORY_MOVEMENTS_KEY = 'croplink:inventory:movements'
 
 const parseArray = <T>(value: string | null): T[] => {
   if (!value) return []
@@ -62,26 +65,56 @@ export const getInventoryMovements = () => getStoredArray<InventoryMovement>(INV
 const saveInventoryItems = (items: InventoryItem[]) => setStoredArray(INVENTORY_ITEMS_KEY, items)
 const saveInventoryMovements = (movements: InventoryMovement[]) => setStoredArray(INVENTORY_MOVEMENTS_KEY, movements)
 
-export const ensureInventoryItem = (input: Pick<InventoryItem, 'sku' | 'nombre' | 'unidad'>) => {
+export const createInventoryItem = (
+  input: Omit<InventoryItem, 'id' | 'stock_actual'> & { stock_actual?: number },
+) => {
   const items = getInventoryItems()
-  const existing = items.find((item) => item.sku === input.sku)
-  if (existing) return existing
-
   const created: InventoryItem = {
+    ...input,
     id: createId('inv-item'),
-    sku: input.sku,
-    nombre: input.nombre,
-    unidad: input.unidad,
-    stock_actual: 0,
-    stock_minimo: 0,
+    stock_actual: Number((input.stock_actual ?? 0).toFixed(4)),
+    categoria: input.categoria.trim() || 'General',
+    ubicacion: input.ubicacion.trim() || 'Sin ubicación',
   }
 
   saveInventoryItems([created, ...items])
   return created
 }
 
+export const updateInventoryItem = (itemId: string, changes: Partial<Omit<InventoryItem, 'id'>>) => {
+  const items = getInventoryItems()
+  const next = items.map((item) => (item.id === itemId ? { ...item, ...changes } : item))
+  saveInventoryItems(next)
+}
+
+export const deleteInventoryItem = (itemId: string) => {
+  const items = getInventoryItems()
+  const next = items.filter((item) => item.id !== itemId)
+  saveInventoryItems(next)
+}
+
+export const ensureInventoryItem = (
+  input: Pick<InventoryItem, 'sku' | 'nombre' | 'unidad'> &
+    Partial<Pick<InventoryItem, 'categoria' | 'ubicacion' | 'stock_minimo' | 'proveedor_sugerido'>>,
+) => {
+  const items = getInventoryItems()
+  const existing = items.find((item) => item.sku === input.sku)
+  if (existing) return existing
+
+  return createInventoryItem({
+    sku: input.sku,
+    nombre: input.nombre,
+    unidad: input.unidad,
+    categoria: input.categoria ?? 'General',
+    stock_minimo: input.stock_minimo ?? 0,
+    ubicacion: input.ubicacion ?? 'Sin ubicación',
+    proveedor_sugerido: input.proveedor_sugerido,
+  })
+}
+
 const movementDelta = (type: InventoryMovementType, qty: number) => {
   if (type === 'IN' || type === 'RETURN') return qty
+  if (type === 'ADJUST') return qty
   return -qty
 }
 
@@ -89,6 +122,7 @@ export const registerInventoryMovement = (movementInput: Omit<InventoryMovement,
   const movement: InventoryMovement = {
     ...movementInput,
     id: createId('inv-mov'),
+    qty: Number(movementInput.qty.toFixed(4)),
   }
 
   const items = getInventoryItems()
