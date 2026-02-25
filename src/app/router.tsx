@@ -17,6 +17,7 @@ import { NominaPeriodosPage } from '../pages/nomina/NominaPeriodosPage'
 import { NominaRegistrosPage } from '../pages/nomina/NominaRegistrosPage'
 import { NominaReportesPage } from '../pages/nomina/NominaReportesPage'
 import { RequisicionesCrearPage } from '../pages/requisiciones/RequisicionesCrearPage'
+import { RequisicionEjecucionPage } from '../pages/requisiciones/RequisicionEjecucionPage'
 import { RequisicionesListaPage } from '../pages/requisiciones/RequisicionesListaPage'
 import { ActivosDetallePage } from '../pages/activos/ActivosDetallePage'
 import { ActivosListaPage } from '../pages/activos/ActivosListaPage'
@@ -48,6 +49,8 @@ export function AppRouter() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/requisiciones/lista" element={<RequisicionesListaPage />} />
         <Route path="/requisiciones/crear" element={<RequisicionesCrearPage />} />
+        <Route path="/requisiciones/:id/ejecutar" element={<RequisicionEjecucionPage />} />
+        <Route path="/requisiciones/:id/ejecucion/:execId" element={<RequisicionEjecucionPage />} />
         <Route path="/marketplace/comparar" element={<MarketplaceCompararPage />} />
         <Route path="/requisiciones/aprobaciones" element={<RequisicionesListaPage />} />
         <Route path="/inventario" element={<DashboardPage />} />

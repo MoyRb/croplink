@@ -294,10 +294,21 @@ export function RequisicionesListaPage() {
               )}
             </div>
 
-            <div className="mt-8 flex gap-3">
+            <div className="mt-8 flex flex-wrap gap-3">
               <Button variant="secondary" onClick={() => handleDuplicate(selected)}>
                 Duplicar
               </Button>
+              {selected.estado === 'Aprobada' ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setSelected(null)
+                    navigate(`/requisiciones/${selected.id}/ejecutar`)
+                  }}
+                >
+                  Ejecutar requisición
+                </Button>
+              ) : null}
               <Button onClick={() => setSelected(null)}>Cerrar detalle</Button>
             </div>
           </aside>
