@@ -12,6 +12,7 @@ import {
   toggleEmpleadoActivo,
   updateEmpleado,
   type Empleado,
+  type PayScheme,
   type TipoPago,
 } from '../../lib/store/nomina'
 
@@ -27,6 +28,10 @@ const initialForm = {
   puesto: '',
   tipoPago: 'Diario' as TipoPago,
   salarioBase: 0,
+  paySchemeDefault: 'DIARIO' as PayScheme,
+  dailyRate: 0,
+  taskRate: 0,
+  unitRate: 0,
   activo: true,
   fechaAlta: new Date().toISOString().slice(0, 10),
   notas: '',
@@ -59,6 +64,10 @@ export function NominaEmpleadosPage() {
         puesto: empleado.puesto,
         tipoPago: empleado.tipoPago,
         salarioBase: empleado.salarioBase,
+        paySchemeDefault: empleado.paySchemeDefault,
+        dailyRate: empleado.dailyRate ?? 0,
+        taskRate: empleado.taskRate ?? 0,
+        unitRate: empleado.unitRate ?? 0,
         activo: empleado.activo,
         fechaAlta: empleado.fechaAlta,
         notas: empleado.notas ?? '',
@@ -85,19 +94,18 @@ export function NominaEmpleadosPage() {
       return
     }
 
+    const payload = {
+      ...formData,
+      dailyRate: formData.dailyRate > 0 ? formData.dailyRate : undefined,
+      taskRate: formData.taskRate > 0 ? formData.taskRate : undefined,
+      unitRate: formData.unitRate > 0 ? formData.unitRate : undefined,
+      notas: formData.notas?.trim() ? formData.notas : undefined,
+    }
+
     if (editing) {
-      const updated = updateEmpleado({
-        ...editing,
-        ...formData,
-        notas: formData.notas?.trim() ? formData.notas : undefined,
-      })
-      setEmpleados(updated)
+      setEmpleados(updateEmpleado({ ...editing, ...payload }))
     } else {
-      const updated = addEmpleado({
-        ...formData,
-        notas: formData.notas?.trim() ? formData.notas : undefined,
-      })
-      setEmpleados(updated)
+      setEmpleados(addEmpleado(payload))
     }
 
     setToastVisible(true)
@@ -125,7 +133,7 @@ export function NominaEmpleadosPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900">Empleados activos</h2>
-            <p className="text-sm text-gray-500">Consulta puestos y salarios base.</p>
+            <p className="text-sm text-gray-500">Consulta puestos y tarifas por esquema.</p>
           </div>
           <Input
             className="w-full max-w-xs"
@@ -151,8 +159,10 @@ export function NominaEmpleadosPage() {
                 <tr>
                   <TableHead>Nombre</TableHead>
                   <TableHead>Puesto</TableHead>
-                  <TableHead>Tipo pago</TableHead>
-                  <TableHead>Salario base</TableHead>
+                  <TableHead>Esquema default</TableHead>
+                  <TableHead>Tarifa día</TableHead>
+                  <TableHead>Tarifa tarea</TableHead>
+                  <TableHead>Tarifa unidad</TableHead>
                   <TableHead>Activo</TableHead>
                   <TableHead>Acciones</TableHead>
                 </tr>
@@ -164,8 +174,10 @@ export function NominaEmpleadosPage() {
                       {empleado.nombreCompleto}
                     </TableCell>
                     <TableCell>{empleado.puesto}</TableCell>
-                    <TableCell>{empleado.tipoPago}</TableCell>
-                    <TableCell>{formatCurrency(empleado.salarioBase)}</TableCell>
+                    <TableCell>{empleado.paySchemeDefault}</TableCell>
+                    <TableCell>{empleado.dailyRate ? formatCurrency(empleado.dailyRate) : '—'}</TableCell>
+                    <TableCell>{empleado.taskRate ? formatCurrency(empleado.taskRate) : '—'}</TableCell>
+                    <TableCell>{empleado.unitRate ? formatCurrency(empleado.unitRate) : '—'}</TableCell>
                     <TableCell>
                       <button
                         onClick={() => handleToggle(empleado.id)}
@@ -216,7 +228,7 @@ export function NominaEmpleadosPage() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-700">Tipo de pago</label>
+              <label className="text-sm font-medium text-gray-700">Tipo de pago histórico</label>
               <select
                 className="mt-2 w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm text-gray-800 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6]"
                 value={formData.tipoPago}
@@ -241,12 +253,56 @@ export function NominaEmpleadosPage() {
               />
             </div>
             <div>
+              <label className="text-sm font-medium text-gray-700">Esquema de pago default</label>
+              <select
+                className="mt-2 w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm text-gray-800 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6]"
+                value={formData.paySchemeDefault}
+                onChange={(event) =>
+                  setFormData({ ...formData, paySchemeDefault: event.target.value as PayScheme })
+                }
+              >
+                <option value="DIARIO">DIARIO</option>
+                <option value="POR_TAREA">POR_TAREA</option>
+                <option value="POR_UNIDAD">POR_UNIDAD</option>
+              </select>
+            </div>
+            <div>
               <label className="text-sm font-medium text-gray-700">Fecha de alta</label>
               <Input
                 className="mt-2"
                 type="date"
                 value={formData.fechaAlta}
                 onChange={(event) => setFormData({ ...formData, fechaAlta: event.target.value })}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Tarifa diaria (opcional)</label>
+              <Input
+                className="mt-2"
+                type="number"
+                min={0}
+                value={formData.dailyRate}
+                onChange={(event) => setFormData({ ...formData, dailyRate: Number(event.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Tarifa por tarea (opcional)</label>
+              <Input
+                className="mt-2"
+                type="number"
+                min={0}
+                value={formData.taskRate}
+                onChange={(event) => setFormData({ ...formData, taskRate: Number(event.target.value) })}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium text-gray-700">Tarifa por unidad (opcional)</label>
+              <Input
+                className="mt-2"
+                type="number"
+                min={0}
+                value={formData.unitRate}
+                onChange={(event) => setFormData({ ...formData, unitRate: Number(event.target.value) })}
               />
             </div>
             <div className="flex items-center gap-3">

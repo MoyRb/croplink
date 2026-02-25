@@ -82,7 +82,7 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
     matchPaths: ['/nomina/'],
     items: [
       { label: 'Empleados', to: '/nomina/empleados' },
-      { label: 'Periodos', to: '/nomina/periodos' },
+      { label: 'Registros', to: '/nomina/registros' },
       { label: 'Pagos', to: '/nomina/pagos' },
       { label: 'Reportes', to: '/nomina/reportes' },
     ],
