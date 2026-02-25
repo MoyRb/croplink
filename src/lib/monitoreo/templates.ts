@@ -41,6 +41,34 @@ export const DESARROLLO_TEMPLATES: Record<EtapaFenologica, MetricTemplate[]> = {
   ],
 }
 
+
+const ROOT_METRICS: MetricTemplate[] = [
+  { key: 'raiz_longitud_cm', label: 'Longitud de raíz (cm)', required: true },
+  { key: 'raiz_diametro_mm', label: 'Diámetro de raíz (mm)' },
+  {
+    key: 'raiz_color',
+    label: 'Color de raíz',
+    type: 'select',
+    options: ['Blanco', 'Crema', 'Café', 'Negro'],
+  },
+  {
+    key: 'raiz_vigor',
+    label: 'Vigor de raíz',
+    type: 'select',
+    options: ['Bajo', 'Medio', 'Alto'],
+  },
+]
+
+export const shouldShowRootMetrics = (
+  tipoMonitoreo: 'DESARROLLO' | 'NUTRICION',
+  etapaFenologica: EtapaFenologica,
+) => tipoMonitoreo === 'DESARROLLO' && etapaFenologica !== 'cosecha'
+
+export const getRootMetricsTemplates = (
+  tipoMonitoreo: 'DESARROLLO' | 'NUTRICION',
+  etapaFenologica: EtapaFenologica,
+): MetricTemplate[] => (shouldShowRootMetrics(tipoMonitoreo, etapaFenologica) ? ROOT_METRICS : [])
+
 export const NUTRICION_BASE: MetricTemplate[] = [{ key: 'brix', label: 'Brix', required: true }]
 
 export const NUTRICION_BY_SISTEMA: Record<SistemaProduccion, MetricTemplate[]> = {

@@ -4,8 +4,10 @@ import { Badge } from '../../components/ui/Badge'
 import { Card } from '../../components/ui/Card'
 import {
   calcAverageDensity,
+  calcAverageRootLength,
   calcDensity,
   collectThresholdViolations,
+  countRootVigor,
   getSessionById,
 } from '../../lib/monitoreo'
 
@@ -17,6 +19,9 @@ export function MonitoreosResumenPage() {
 
   const violations = collectThresholdViolations(session)
   const avgDensity = calcAverageDensity(session)
+  const avgRootLength = calcAverageRootLength(session)
+  const rootVigorCount = countRootVigor(session)
+  const rootLengthViolations = violations.filter((violation) => violation.metric === 'raiz_longitud_cm')
 
   return (
     <div className="space-y-6">
@@ -37,10 +42,16 @@ export function MonitoreosResumenPage() {
         </div>
       </Card>
 
-      <Card>
-        <p className="text-sm text-gray-500">Densidad promedio</p>
-        <p className="text-3xl font-semibold text-gray-900">{avgDensity.toFixed(2)}</p>
-      </Card>
+      <div className="grid gap-3 md:grid-cols-2">
+        <Card>
+          <p className="text-sm text-gray-500">Densidad promedio</p>
+          <p className="text-3xl font-semibold text-gray-900">{avgDensity.toFixed(2)}</p>
+        </Card>
+        <Card>
+          <p className="text-sm text-gray-500">Promedio raíz longitud (cm)</p>
+          <p className="text-3xl font-semibold text-gray-900">{avgRootLength === null ? 'N/A' : avgRootLength.toFixed(2)}</p>
+        </Card>
+      </div>
 
       <Card className="space-y-3">
         <h2 className="font-semibold text-gray-900">Densidad por punto</h2>
@@ -81,9 +92,26 @@ export function MonitoreosResumenPage() {
         ))}
       </Card>
 
+      <Card className="space-y-3">
+        <h2 className="font-semibold text-gray-900">Resumen de raíz</h2>
+        <p className="text-sm text-gray-500">
+          Promedio raíz longitud: {avgRootLength === null ? 'N/A' : `${avgRootLength.toFixed(2)} cm`}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {Object.keys(rootVigorCount).length === 0 ? (
+            <p className="text-sm text-gray-500">Sin registros de vigor de raíz.</p>
+          ) : (
+            Object.entries(rootVigorCount).map(([vigor, count]) => (
+              <Badge key={vigor}>{`${vigor}: ${count}`}</Badge>
+            ))
+          )}
+        </div>
+      </Card>
+
       <Card className="space-y-2">
         <h2 className="font-semibold text-gray-900">Indicadores de umbrales</h2>
         <p className="text-sm text-gray-500">Fuera de rango: {violations.length}</p>
+        <p className="text-sm text-gray-500">Raíz longitud fuera de rango: {rootLengthViolations.length}</p>
         {violations.map((violation, index) => (
           <div key={`${violation.scope}-${index}`} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-2 text-sm">
             <span>

@@ -82,6 +82,7 @@ export type MonitoringSession = {
 export type MetricTemplate = {
   key: string
   label: string
-  type?: 'number' | 'text'
+  type?: 'number' | 'text' | 'select'
+  options?: string[]
   required?: boolean
 }

@@ -9,6 +9,7 @@ import {
   DESARROLLO_TEMPLATES,
   NUTRICION_BASE,
   NUTRICION_BY_SISTEMA,
+  getRootMetricsTemplates,
   addSectorToSession,
   calcDensity,
   evaluateThreshold,
@@ -26,6 +27,7 @@ export function MonitoreosSesionPage() {
   const [activePoint, setActivePoint] = useState(0)
   const [activePlant, setActivePlant] = useState(0)
   const [sessionState, setSessionState] = useState(() => getSessionById(id) ?? null)
+  const [rootLengthError, setRootLengthError] = useState('')
 
   const session = sessionState
   if (!session) return <Navigate to="/monitoreos/lista" replace />
@@ -34,6 +36,8 @@ export function MonitoreosSesionPage() {
     session.config.tipoMonitoreo === 'DESARROLLO'
       ? DESARROLLO_TEMPLATES[session.config.etapaFenologica]
       : [...NUTRICION_BASE, ...NUTRICION_BY_SISTEMA[session.config.sistemaProduccion ?? 'HIDROPONICO']]
+
+  const rootTemplates = getRootMetricsTemplates(session.config.tipoMonitoreo, session.config.etapaFenologica)
 
   const persistSession = (updater: Parameters<typeof updateSession>[1]) => {
     const updated = updateSession(session.id, updater)
@@ -44,11 +48,19 @@ export function MonitoreosSesionPage() {
   const point = sector.points[activePoint]
   const plant = point.plantas[activePlant]
 
-  const saveMetric = (key: string, rawValue: string) => {
+  const saveMetric = (key: string, rawValue: string, templatePool: MetricTemplate[] = templates) => {
+    const metricTemplate = templatePool.find((template) => template.key === key)
+    const value = metricTemplate?.type === 'text' || metricTemplate?.type === 'select' ? rawValue : Number(rawValue)
+
+    if (key === 'raiz_longitud_cm' && rawValue !== '' && Number(rawValue) < 0) {
+      setRootLengthError('La longitud de raíz debe ser mayor o igual a 0 cm.')
+      return
+    }
+
+    if (key === 'raiz_longitud_cm') setRootLengthError('')
+
     persistSession((draft) => {
       const next = structuredClone(draft)
-      const metricTemplate = templates.find((template) => template.key === key)
-      const value = metricTemplate?.type === 'text' ? rawValue : Number(rawValue)
       next.sectors[activeSector].points[activePoint].plantas[activePlant].metrics[key] = value
       return next
     })
@@ -183,16 +195,82 @@ export function MonitoreosSesionPage() {
             return (
               <div key={template.key} className={`rounded-2xl border p-3 ${highlight}`}>
                 <label className="mb-1 block text-xs font-semibold text-gray-600">{template.label}</label>
-                <Input
-                  type={template.type === 'text' ? 'text' : 'number'}
-                  value={value?.toString() ?? ''}
-                  onChange={(event) => saveMetric(template.key, event.target.value)}
-                />
+                {template.type === 'select' ? (
+                  <select
+                    className="w-full rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
+                    value={value?.toString() ?? ''}
+                    onChange={(event) => saveMetric(template.key, event.target.value)}
+                  >
+                    <option value="">Selecciona una opción</option>
+                    {(template.options ?? []).map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <Input
+                    type={template.type === 'text' ? 'text' : 'number'}
+                    value={value?.toString() ?? ''}
+                    onChange={(event) => saveMetric(template.key, event.target.value)}
+                  />
+                )}
               </div>
             )
           })}
         </div>
       </Card>
+
+      {rootTemplates.length > 0 ? (
+        <Card className="space-y-4">
+          <h2 className="font-semibold text-gray-900">Raíz</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            {rootTemplates.map((template) => {
+              const threshold = findThreshold(template.key, session.config.umbrales)
+              const value = plant.metrics[template.key]
+              const numericValue = Number(value)
+              const status =
+                threshold && !Number.isNaN(numericValue) ? evaluateThreshold(numericValue, threshold) : 'ok'
+              const highlight =
+                status === 'ok'
+                  ? ''
+                  : status === 'above'
+                    ? 'border-red-300 bg-red-50'
+                    : 'border-amber-300 bg-amber-50'
+
+              return (
+                <div key={template.key} className={`rounded-2xl border p-3 ${highlight}`}>
+                  <label className="mb-1 block text-xs font-semibold text-gray-600">{template.label}</label>
+                  {template.type === 'select' ? (
+                    <select
+                      className="w-full rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
+                      value={value?.toString() ?? ''}
+                      onChange={(event) => saveMetric(template.key, event.target.value, rootTemplates)}
+                    >
+                      <option value="">Selecciona una opción</option>
+                      {(template.options ?? []).map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Input
+                      type="number"
+                      min={template.key === 'raiz_longitud_cm' ? 0 : undefined}
+                      step="any"
+                      placeholder={template.key === 'raiz_longitud_cm' ? 'cm' : template.key === 'raiz_diametro_mm' ? 'mm' : undefined}
+                      value={value?.toString() ?? ''}
+                      onChange={(event) => saveMetric(template.key, event.target.value, rootTemplates)}
+                    />
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {rootLengthError ? <p className="text-sm text-red-600">{rootLengthError}</p> : null}
+        </Card>
+      ) : null}
 
       <Card className="space-y-3">
         <div className="flex items-center justify-between">

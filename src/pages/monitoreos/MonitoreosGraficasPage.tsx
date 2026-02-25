@@ -216,7 +216,7 @@ export function MonitoreosGraficasPage() {
   }, [filteredSessions, filters.metric])
 
   const metricOptions = useMemo(() => {
-    const keys = new Set<string>(['densidad_promedio'])
+    const keys = new Set<string>(['densidad_promedio', 'raiz_longitud_cm'])
 
     sessions.forEach((session) => {
       session.config.umbrales.forEach((threshold) => keys.add(threshold.metric))
