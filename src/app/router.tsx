@@ -14,6 +14,7 @@ import { MonitoreosSesionPage } from '../pages/monitoreos/MonitoreosSesionPage'
 import { NominaEmpleadosPage } from '../pages/nomina/NominaEmpleadosPage'
 import { NominaPagosPage } from '../pages/nomina/NominaPagosPage'
 import { NominaPeriodosPage } from '../pages/nomina/NominaPeriodosPage'
+import { NominaRegistrosPage } from '../pages/nomina/NominaRegistrosPage'
 import { NominaReportesPage } from '../pages/nomina/NominaReportesPage'
 import { RequisicionesCrearPage } from '../pages/requisiciones/RequisicionesCrearPage'
 import { RequisicionesListaPage } from '../pages/requisiciones/RequisicionesListaPage'
@@ -101,6 +102,14 @@ export function AppRouter() {
           element={
             <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
               <NominaEmpleadosPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/nomina/registros"
+          element={
+            <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
+              <NominaRegistrosPage />
             </RequireRole>
           }
         />
