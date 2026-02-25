@@ -18,6 +18,10 @@ import {
 } from '../../lib/store/applicationExecutions'
 import { useRequisicionesStore } from '../../lib/store/requisiciones'
 import { getCatalog } from '../../lib/operationCatalog/repo'
+import {
+  ensureInventoryItem,
+  registerInventoryMovement,
+} from '../../lib/store/inventory'
 
 const tankVolumeOptions = [100, 200, 1000, 5000]
 
@@ -36,6 +40,19 @@ type SectorSurface = {
   sectorId: string
   superficie: number
 }
+
+type InventoryExecutionLine = {
+  lineId: string
+  itemId: string
+  sku: string
+  nombre: string
+  unit: string
+  qtyPlanificada: number
+  qtySalida: number
+  qtyUsada: number
+  qtyMerma: number
+}
+
 
 export function RequisicionEjecucionPage() {
   const navigate = useNavigate()
@@ -183,6 +200,43 @@ export function RequisicionEjecucionPage() {
 
   const totalGeneral = useMemo(() => resumenConsumo.reduce((acc, item) => acc + item.total, 0), [resumenConsumo])
 
+
+  const inventoryLines = useMemo<InventoryExecutionLine[]>(() => {
+    const movementLineBase = lines.map((line) => {
+      const qtyPlanificada =
+        execution.mode === 'FOLIAR_DRENCH'
+          ? foliarTotalsByLine.find((item) => item.lineId === line.id)?.total ?? 0
+          : riegoTotalsByLine.find((item) => item.lineId === line.id)?.total ?? 0
+
+      const requisicionItem = requisicion?.items?.find((item) => item.id === line.requisicionItemId)
+      const sku = requisicionItem?.product_id ?? line.requisicionItemId
+
+      return {
+        lineId: line.id,
+        sku,
+        nombre: line.productName,
+        unit: line.unit,
+        qtyPlanificada,
+      }
+    })
+
+    return movementLineBase.map((lineBase) => {
+      const persisted = execution.inventory?.lines.find((item) => item.lineId === lineBase.lineId)
+      const qtySalida = persisted?.qtySalida ?? lineBase.qtyPlanificada
+      return {
+        lineId: lineBase.lineId,
+        itemId: persisted?.itemId ?? '',
+        sku: lineBase.sku,
+        nombre: lineBase.nombre,
+        unit: lineBase.unit,
+        qtyPlanificada: lineBase.qtyPlanificada,
+        qtySalida,
+        qtyUsada: persisted?.qtyUsada ?? qtySalida,
+        qtyMerma: persisted?.qtyMerma ?? 0,
+      }
+    })
+  }, [execution.inventory?.lines, execution.mode, foliarTotalsByLine, lines, requisicion?.items, riegoTotalsByLine])
+
   if (!requisicion) {
     return (
       <Card>
@@ -201,8 +255,40 @@ export function RequisicionEjecucionPage() {
     }))
   }
 
+  const updateInventoryLine = (lineId: string, field: 'qtySalida' | 'qtyUsada' | 'qtyMerma', value: number) => {
+    setExecution((prev) => {
+      const prevLines = prev.inventory?.lines ?? inventoryLines
+      const nextLines = prevLines.map((line) => (line.lineId === lineId ? { ...line, [field]: value } : line))
+      return {
+        ...prev,
+        inventory: {
+          lines: nextLines,
+          outMovementIds: prev.inventory?.outMovementIds ?? [],
+          returnMovementIds: prev.inventory?.returnMovementIds ?? [],
+          wasteMovementIds: prev.inventory?.wasteMovementIds ?? [],
+          outPostedAt: prev.inventory?.outPostedAt,
+          closedPostedAt: prev.inventory?.closedPostedAt,
+        },
+      }
+    })
+  }
+
   const persistExecution = (status: ApplicationExecutionStatus) => {
     const surfaceTotal = execution.mode === 'FOLIAR_DRENCH' ? foliarSuperficieTotal : irrigationRows.reduce((acc, row) => acc + row.superficie, 0)
+
+    const currentInventoryLines = execution.inventory?.lines ?? inventoryLines
+    const outMovementIds = execution.inventory?.outMovementIds ?? []
+    const returnMovementIds = execution.inventory?.returnMovementIds ?? []
+    const wasteMovementIds = execution.inventory?.wasteMovementIds ?? []
+
+    const nextInventory = {
+      lines: currentInventoryLines,
+      outMovementIds,
+      returnMovementIds,
+      wasteMovementIds,
+      outPostedAt: execution.inventory?.outPostedAt,
+      closedPostedAt: execution.inventory?.closedPostedAt,
+    }
 
     const nextExecution: ApplicationExecution = {
       ...execution,
@@ -211,6 +297,74 @@ export function RequisicionEjecucionPage() {
         ...execution.headerFields,
         superficieTotal: surfaceTotal,
       },
+      inventory: nextInventory,
+    }
+
+    const now = new Date().toISOString()
+
+    if (status === 'IN_PROGRESS' && !nextInventory.outPostedAt) {
+      const postedOutIds: string[] = []
+      nextInventory.lines = nextInventory.lines.map((line) => {
+        const item = ensureInventoryItem({ sku: line.sku, nombre: line.nombre, unidad: line.unit })
+        if (line.qtySalida > 0) {
+          const movement = registerInventoryMovement({
+            date: now,
+            type: 'OUT',
+            itemId: item.id,
+            qty: line.qtySalida,
+            unit: line.unit,
+            refType: 'EJECUCION',
+            refId: execution.id,
+            notes: `Salida por ejecución ${execution.id}`,
+          })
+          postedOutIds.push(movement.id)
+        }
+        return { ...line, itemId: item.id }
+      })
+      nextInventory.outMovementIds = postedOutIds
+      nextInventory.outPostedAt = now
+    }
+
+    if (status === 'COMPLETED' && !nextInventory.closedPostedAt) {
+      const postedReturnIds: string[] = []
+      const postedWasteIds: string[] = []
+
+      nextInventory.lines.forEach((line) => {
+        if (!line.itemId) return
+
+        const qtyDevolucion = Math.max(0, line.qtySalida - line.qtyUsada)
+        if (qtyDevolucion > 0) {
+          const movement = registerInventoryMovement({
+            date: now,
+            type: 'RETURN',
+            itemId: line.itemId,
+            qty: qtyDevolucion,
+            unit: line.unit,
+            refType: 'EJECUCION',
+            refId: execution.id,
+            notes: `Devolución por ejecución ${execution.id}`,
+          })
+          postedReturnIds.push(movement.id)
+        }
+
+        if (line.qtyMerma > 0) {
+          const movement = registerInventoryMovement({
+            date: now,
+            type: 'WASTE',
+            itemId: line.itemId,
+            qty: line.qtyMerma,
+            unit: line.unit,
+            refType: 'EJECUCION',
+            refId: execution.id,
+            notes: `Merma por ejecución ${execution.id}`,
+          })
+          postedWasteIds.push(movement.id)
+        }
+      })
+
+      nextInventory.returnMovementIds = postedReturnIds
+      nextInventory.wasteMovementIds = postedWasteIds
+      nextInventory.closedPostedAt = now
     }
 
     setExecution(nextExecution)
@@ -219,8 +373,8 @@ export function RequisicionEjecucionPage() {
       status === 'DRAFT'
         ? 'Borrador guardado.'
         : status === 'IN_PROGRESS'
-          ? 'Ejecución marcada en progreso.'
-          : 'Ejecución terminada.',
+          ? 'Ejecución marcada en progreso y salida de inventario registrada.'
+          : 'Ejecución terminada e inventario conciliado.',
     )
   }
 
@@ -567,6 +721,47 @@ export function RequisicionEjecucionPage() {
                 <td className="px-2 py-3 font-semibold text-gray-900">Total general</td>
                 <td className="px-2 py-3 font-semibold text-gray-900">{formatNumber(totalGeneral)}</td>
               </tr>
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+
+      <Card>
+        <h2 className="text-lg font-semibold text-gray-900">Inventario</h2>
+        <p className="mt-1 text-sm text-gray-500">Registra salida, consumo real, devolución y merma por producto.</p>
+        <div className="mt-4 overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-gray-500">
+                <th className="px-2 py-2">Producto</th>
+                <th className="px-2 py-2">Planificada</th>
+                <th className="px-2 py-2">Salida</th>
+                <th className="px-2 py-2">Usada real</th>
+                <th className="px-2 py-2">Devolución</th>
+                <th className="px-2 py-2">Merma</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inventoryLines.map((line) => {
+                const qtyDevolucion = Math.max(0, line.qtySalida - line.qtyUsada)
+                return (
+                  <tr key={line.lineId} className="border-b border-gray-100">
+                    <td className="px-2 py-2">{line.nombre}</td>
+                    <td className="px-2 py-2 font-semibold">{formatNumber(line.qtyPlanificada)} {line.unit}</td>
+                    <td className="px-2 py-2">
+                      <Input type="number" min={0} step="0.01" value={line.qtySalida} onChange={(event) => updateInventoryLine(line.lineId, 'qtySalida', parseNumeric(event.target.value))} />
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input type="number" min={0} step="0.01" value={line.qtyUsada} onChange={(event) => updateInventoryLine(line.lineId, 'qtyUsada', parseNumeric(event.target.value))} />
+                    </td>
+                    <td className="px-2 py-2 font-semibold">{formatNumber(qtyDevolucion)} {line.unit}</td>
+                    <td className="px-2 py-2">
+                      <Input type="number" min={0} step="0.01" value={line.qtyMerma} onChange={(event) => updateInventoryLine(line.lineId, 'qtyMerma', parseNumeric(event.target.value))} />
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

@@ -26,7 +26,10 @@ export const NAV_SECTIONS: NavItem[] = [
   },
   {
     label: 'Inventario',
-    to: '/inventario',
+    items: [
+      { label: 'Vista general', to: '/inventario' },
+      { label: 'Movimientos', to: '/inventario/movimientos' },
+    ],
   },
   {
     label: 'Activos',
