@@ -27,6 +27,8 @@ const prioridades = ['Baja', 'Media', 'Alta'] as const
 const cultivosDisponibles = ['Arándano', 'Fresa', 'Frambuesa', 'Zarzamora'] as const
 const tiposPlaga = ['Plaga', 'Enfermedad'] as const
 const mercados = ['MX', 'USA', 'Todos'] as const
+const especiesBeneficosMock = ['Trichogramma', 'Aphidius', 'Chrysoperla', 'Orius', 'Encarsia'] as const
+const presentacionesBeneficosMock = ['Sobres', 'Frascos', 'Tarjeta', 'Botella', 'Blister'] as const
 
 const maxFileSize = 10 * 1024 * 1024
 
@@ -92,6 +94,12 @@ export function RequisicionesCrearPage() {
   const [insumoSeleccionado, setInsumoSeleccionado] = useState<InventoryItem | null>(null)
   const [insumoCantidad, setInsumoCantidad] = useState('1')
   const [insumoUnidad, setInsumoUnidad] = useState('')
+  const [beneficoEspecie, setBeneficoEspecie] = useState<(typeof especiesBeneficosMock)[number]>(especiesBeneficosMock[0])
+  const [beneficoPresentacion, setBeneficoPresentacion] = useState<(typeof presentacionesBeneficosMock)[number]>(presentacionesBeneficosMock[0])
+  const [beneficoDosisPorHa, setBeneficoDosisPorHa] = useState('1')
+  const [beneficoSuperficieHa, setBeneficoSuperficieHa] = useState('1')
+  const [beneficoFechaProgramada, setBeneficoFechaProgramada] = useState('')
+  const [beneficoNotas, setBeneficoNotas] = useState('')
 
   const cantidadNumero = Number(cantidad)
   const isCompareDisabled = !producto.trim() || !cantidadNumero || cantidadNumero <= 0
@@ -201,6 +209,52 @@ export function RequisicionesCrearPage() {
     setInsumoSeleccionado(null)
     setInsumoCantidad('1')
     setInsumoUnidad('')
+  }
+
+  const handleAgregarBenefico = () => {
+    const dosis = Number(beneficoDosisPorHa)
+    const superficie = Number(beneficoSuperficieHa)
+
+    if (!beneficoEspecie.trim() || !beneficoPresentacion.trim() || !dosis || dosis <= 0 || !superficie || superficie <= 0) {
+      return
+    }
+
+    const total = Number((dosis * superficie).toFixed(2))
+    const key = `${beneficoEspecie.toLowerCase()}-${beneficoPresentacion.toLowerCase()}`
+
+    setItemsRequisicion((prev) => {
+      const alreadyExists = prev.some((item) => item.tipo === 'BENEFICO' && item.product_id === key)
+      if (alreadyExists) {
+        setDuplicateToastVisible(true)
+        return prev
+      }
+
+      const next: RequisicionItem = {
+        id: `benefico-${Date.now()}`,
+        tipo: 'BENEFICO',
+        product_id: key,
+        commercial_name: beneficoEspecie,
+        quantity: total,
+        unit: beneficoPresentacion,
+        notes: beneficoNotas.trim() || undefined,
+        benefico: {
+          especie: beneficoEspecie,
+          presentacion: beneficoPresentacion,
+          dosis_por_ha: dosis,
+          superficie_ha: superficie,
+          total,
+          fecha_programada: beneficoFechaProgramada || undefined,
+          notas: beneficoNotas.trim() || undefined,
+        },
+      }
+
+      return [...prev, next]
+    })
+
+    setBeneficoDosisPorHa('1')
+    setBeneficoSuperficieHa('1')
+    setBeneficoFechaProgramada('')
+    setBeneficoNotas('')
   }
 
   const handleUpdateItem = (itemId: string, changes: Partial<Pick<RequisicionItem, 'quantity' | 'unit' | 'notes'>>) => {
@@ -458,6 +512,13 @@ export function RequisicionesCrearPage() {
     return () => window.clearTimeout(timer)
   }, [missingRanchToastVisible])
 
+  useEffect(() => {
+    const superficieDefault = operationContext.sector ? 5 : operationContext.ranch ? 10 : null
+    if (superficieDefault && Number(beneficoSuperficieHa) <= 1) {
+      setBeneficoSuperficieHa(String(superficieDefault))
+    }
+  }, [beneficoSuperficieHa, operationContext.ranch, operationContext.sector])
+
   const insumoOptions = useMemo(() => {
     const normalizedQuery = insumoQuery.trim().toLowerCase()
     if (!normalizedQuery) return [] as InventoryItem[]
@@ -466,6 +527,26 @@ export function RequisicionesCrearPage() {
       .filter((item) => [item.sku, item.nombre, item.categoria].some((value) => value.toLowerCase().includes(normalizedQuery)))
       .slice(0, 8)
   }, [insumoQuery, inventoryItems])
+
+  const itemsAgroquimicos = useMemo(
+    () => itemsRequisicion.filter((item) => item.tipo === 'AGROQUIMICO'),
+    [itemsRequisicion],
+  )
+
+  const itemsInsumosGenerales = useMemo(
+    () => itemsRequisicion.filter((item) => item.tipo === 'INSUMO_GENERAL'),
+    [itemsRequisicion],
+  )
+
+  const itemsBeneficos = useMemo(
+    () => itemsRequisicion.filter((item) => item.tipo === 'BENEFICO'),
+    [itemsRequisicion],
+  )
+
+  const totalBeneficos = useMemo(
+    () => itemsBeneficos.reduce((acc, item) => acc + (item.benefico?.total ?? 0), 0),
+    [itemsBeneficos],
+  )
 
   const estimatedTotal = selectedOffer
     ? selectedOffer.offer.precioTotal
@@ -804,75 +885,186 @@ export function RequisicionesCrearPage() {
               </div>
             </div>
 
+            <div className="mt-5 rounded-2xl border border-[#E5E7EB] bg-white p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase text-gray-400">Control biológico</p>
+                  <p className="text-sm text-gray-600">Agregar liberación de benéficos como ítem especial de requisición.</p>
+                </div>
+                <Button type="button" variant="secondary" onClick={handleAgregarBenefico}>
+                  Agregar liberación de benéficos
+                </Button>
+              </div>
+
+              <div className="mt-3 grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Especie</label>
+                  <select
+                    className={cn(selectStyles, 'mt-1')}
+                    value={beneficoEspecie}
+                    onChange={(event) => setBeneficoEspecie(event.target.value as (typeof especiesBeneficosMock)[number])}
+                  >
+                    {especiesBeneficosMock.map((especie) => (
+                      <option key={especie} value={especie}>
+                        {especie}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Presentación</label>
+                  <select
+                    className={cn(selectStyles, 'mt-1')}
+                    value={beneficoPresentacion}
+                    onChange={(event) => setBeneficoPresentacion(event.target.value as (typeof presentacionesBeneficosMock)[number])}
+                  >
+                    {presentacionesBeneficosMock.map((presentacion) => (
+                      <option key={presentacion} value={presentacion}>
+                        {presentacion}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Dosis por ha</label>
+                  <Input
+                    className="mt-1"
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={beneficoDosisPorHa}
+                    onChange={(event) => setBeneficoDosisPorHa(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Superficie (ha)</label>
+                  <Input
+                    className="mt-1"
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    value={beneficoSuperficieHa}
+                    onChange={(event) => setBeneficoSuperficieHa(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Fecha programada (opcional)</label>
+                  <Input
+                    className="mt-1"
+                    type="date"
+                    value={beneficoFechaProgramada}
+                    onChange={(event) => setBeneficoFechaProgramada(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Total</label>
+                  <Input
+                    className="mt-1"
+                    value={String((Number(beneficoDosisPorHa || 0) * Number(beneficoSuperficieHa || 0)).toFixed(2))}
+                    readOnly
+                  />
+                </div>
+                <div className="md:col-span-2 lg:col-span-3">
+                  <label className="text-sm font-medium text-gray-700">Notas</label>
+                  <Input
+                    className="mt-1"
+                    placeholder="Detalles de liberación"
+                    value={beneficoNotas}
+                    onChange={(event) => setBeneficoNotas(event.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
             {itemsRequisicion.length > 0 ? (
               <div className="mt-4 rounded-2xl border border-[#E5E7EB] bg-gray-50 p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold text-gray-900">Items agregados a requisición</p>
                   <span className="text-xs text-gray-500">{itemsRequisicion.length} agregado(s)</span>
                 </div>
-                <div className="mt-3 space-y-3">
-                  {itemsRequisicion.map((item) => (
-                    <div key={item.id} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 text-sm">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-gray-900">{item.commercial_name}</p>
-                          <p className="text-xs text-gray-500">{item.tipo}</p>
-                          <p className="text-xs text-gray-500">{item.active_ingredient || '—'}</p>
-                        </div>
-                        <Button type="button" variant="ghost" onClick={() => handleRemoveItem(item.id)}>
-                          Quitar
-                        </Button>
+                <div className="mt-3 space-y-4">
+                  {[
+                    { title: 'Agroquímicos (del asistente fitosanitario)', items: itemsAgroquimicos },
+                    { title: 'Insumos generales', items: itemsInsumosGenerales },
+                    { title: 'Benéficos', items: itemsBeneficos },
+                  ].map((group) =>
+                    group.items.length > 0 ? (
+                      <div key={group.title} className="space-y-3">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{group.title}</p>
+                        {group.items.map((item) => (
+                          <div key={item.id} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <p className="font-medium text-gray-900">{item.commercial_name}</p>
+                                <p className="text-xs text-gray-500">{item.tipo}</p>
+                                <p className="text-xs text-gray-500">{item.active_ingredient || '—'}</p>
+                              </div>
+                              <Button type="button" variant="ghost" onClick={() => handleRemoveItem(item.id)}>
+                                Quitar
+                              </Button>
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-3">
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">Cantidad</label>
+                                <Input
+                                  className="mt-1"
+                                  type="number"
+                                  min={1}
+                                  value={String(item.quantity)}
+                                  onChange={(event) => handleUpdateItem(item.id, { quantity: Number(event.target.value) || 1 })}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">Unidad</label>
+                                <Input
+                                  className="mt-1"
+                                  value={item.unit}
+                                  onChange={(event) => handleUpdateItem(item.id, { unit: event.target.value })}
+                                />
+                              </div>
+                              <div>
+                                <label className="text-xs font-medium text-gray-600">Notas</label>
+                                <Input
+                                  className="mt-1"
+                                  placeholder="Observaciones del ítem"
+                                  value={item.notes || ''}
+                                  onChange={(event) => handleUpdateItem(item.id, { notes: event.target.value })}
+                                />
+                              </div>
+                            </div>
+                            {item.tipo === 'AGROQUIMICO' && item.metadata ? (
+                              <div className="mt-3 grid gap-2 text-xs text-gray-600 md:grid-cols-2 lg:grid-cols-3">
+                                <p><strong>Crop:</strong> {item.metadata.crop}</p>
+                                <p><strong>Tipo:</strong> {item.metadata.target_type}</p>
+                                <p><strong>Target:</strong> {item.metadata.target_common}</p>
+                                <p><strong>Mercado:</strong> {item.metadata.market}</p>
+                                <p><strong>Resistencia:</strong> {fallbackValue(item.metadata.resistance_class)}</p>
+                                <p><strong>Grupo químico:</strong> {fallbackValue(item.metadata.chemical_group)}</p>
+                                <p><strong>Intervalo seguridad:</strong> {fallbackValue(item.metadata.safety_interval, 'No especificado')}</p>
+                                <p><strong>Reentrada:</strong> {fallbackValue(item.metadata.reentry_period)}</p>
+                                <p><strong>Intervalo aplicaciones:</strong> {fallbackValue(item.metadata.interval_between_applications)}</p>
+                                <p><strong>Máx. aplicaciones:</strong> {fallbackValue(item.metadata.max_applications)}</p>
+                                <p><strong>Registro:</strong> {fallbackValue(item.metadata.registration)}</p>
+                                <p><strong>Observaciones:</strong> {fallbackValue(item.metadata.observations)}</p>
+                                <p><strong>Ficha:</strong> {fallbackValue(item.metadata.sheet)}</p>
+                              </div>
+                            ) : item.tipo === 'BENEFICO' && item.benefico ? (
+                              <div className="mt-3 grid gap-2 text-xs text-gray-600 md:grid-cols-2 lg:grid-cols-3">
+                                <p><strong>Especie:</strong> {item.benefico.especie}</p>
+                                <p><strong>Presentación:</strong> {item.benefico.presentacion}</p>
+                                <p><strong>Dosis/ha:</strong> {item.benefico.dosis_por_ha}</p>
+                                <p><strong>Superficie:</strong> {item.benefico.superficie_ha} ha</p>
+                                <p><strong>Total:</strong> {item.benefico.total} {item.benefico.presentacion}</p>
+                                <p><strong>Fecha programada:</strong> {fallbackValue(item.benefico.fecha_programada, 'No definida')}</p>
+                              </div>
+                            ) : (
+                              <p className="mt-3 text-xs text-gray-600">Insumo general agregado desde inventario.</p>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                      <div className="mt-3 grid gap-3 md:grid-cols-3">
-                        <div>
-                          <label className="text-xs font-medium text-gray-600">Cantidad</label>
-                          <Input
-                            className="mt-1"
-                            type="number"
-                            min={1}
-                            value={String(item.quantity)}
-                            onChange={(event) => handleUpdateItem(item.id, { quantity: Number(event.target.value) || 1 })}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-600">Unidad</label>
-                          <Input
-                            className="mt-1"
-                            value={item.unit}
-                            onChange={(event) => handleUpdateItem(item.id, { unit: event.target.value })}
-                          />
-                        </div>
-                        <div>
-                          <label className="text-xs font-medium text-gray-600">Notas</label>
-                          <Input
-                            className="mt-1"
-                            placeholder="Observaciones del ítem"
-                            value={item.notes || ''}
-                            onChange={(event) => handleUpdateItem(item.id, { notes: event.target.value })}
-                          />
-                        </div>
-                      </div>
-                      {item.tipo === 'AGROQUIMICO' && item.metadata ? (
-                        <div className="mt-3 grid gap-2 text-xs text-gray-600 md:grid-cols-2 lg:grid-cols-3">
-                          <p><strong>Crop:</strong> {item.metadata.crop}</p>
-                          <p><strong>Tipo:</strong> {item.metadata.target_type}</p>
-                          <p><strong>Target:</strong> {item.metadata.target_common}</p>
-                          <p><strong>Mercado:</strong> {item.metadata.market}</p>
-                          <p><strong>Resistencia:</strong> {fallbackValue(item.metadata.resistance_class)}</p>
-                          <p><strong>Grupo químico:</strong> {fallbackValue(item.metadata.chemical_group)}</p>
-                          <p><strong>Intervalo seguridad:</strong> {fallbackValue(item.metadata.safety_interval, 'No especificado')}</p>
-                          <p><strong>Reentrada:</strong> {fallbackValue(item.metadata.reentry_period)}</p>
-                          <p><strong>Intervalo aplicaciones:</strong> {fallbackValue(item.metadata.interval_between_applications)}</p>
-                          <p><strong>Máx. aplicaciones:</strong> {fallbackValue(item.metadata.max_applications)}</p>
-                          <p><strong>Registro:</strong> {fallbackValue(item.metadata.registration)}</p>
-                          <p><strong>Observaciones:</strong> {fallbackValue(item.metadata.observations)}</p>
-                          <p><strong>Ficha:</strong> {fallbackValue(item.metadata.sheet)}</p>
-                        </div>
-                      ) : (
-                        <p className="mt-3 text-xs text-gray-600">Insumo general agregado desde inventario.</p>
-                      )}
-                    </div>
-                  ))}
+                    ) : null,
+                  )}
                 </div>
               </div>
             ) : null}
@@ -919,6 +1111,10 @@ export function RequisicionesCrearPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span className="text-gray-600">{selectedOffer ? 'Estimado con oferta' : 'Estimado automático'}</span>
               <span className="font-semibold text-gray-900">{formatCurrency(estimatedTotal || 0)}</span>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-gray-600">Total de benéficos</span>
+              <span className="font-semibold text-gray-900">{totalBeneficos.toFixed(2)} unidades de liberación</span>
             </div>
             {resistanceWarning ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-amber-700">
