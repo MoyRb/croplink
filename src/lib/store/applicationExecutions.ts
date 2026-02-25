@@ -38,6 +38,24 @@ export type ApplicationExecution = {
   status: ApplicationExecutionStatus
   context: ApplicationContext
   headerFields: ApplicationHeaderFields
+  inventory?: {
+    lines: {
+      lineId: string
+      itemId: string
+      sku: string
+      nombre: string
+      unit: string
+      qtyPlanificada: number
+      qtySalida: number
+      qtyUsada: number
+      qtyMerma: number
+    }[]
+    outMovementIds: string[]
+    returnMovementIds: string[]
+    wasteMovementIds: string[]
+    outPostedAt?: string
+    closedPostedAt?: string
+  }
   createdAt: string
 }
 

@@ -6,6 +6,7 @@ import { RequireRole } from './auth/RequireRole'
 import { DashboardPage } from '../pages/dashboard/DashboardPage'
 import { LoginPage } from '../pages/login/LoginPage'
 import { MarketplaceCompararPage } from '../pages/marketplace/MarketplaceCompararPage'
+import { InventarioMovimientosPage } from '../pages/inventario/InventarioMovimientosPage'
 import { MonitoreosCrearPage } from '../pages/monitoreos/MonitoreosCrearPage'
 import { MonitoreosIniciarPage } from '../pages/monitoreos/MonitoreosIniciarPage'
 import { MonitoreosListaPage } from '../pages/monitoreos/MonitoreosListaPage'
@@ -54,6 +55,7 @@ export function AppRouter() {
         <Route path="/marketplace/comparar" element={<MarketplaceCompararPage />} />
         <Route path="/requisiciones/aprobaciones" element={<RequisicionesListaPage />} />
         <Route path="/inventario" element={<DashboardPage />} />
+        <Route path="/inventario/movimientos" element={<InventarioMovimientosPage />} />
         <Route
           path="/activos/lista"
           element={
