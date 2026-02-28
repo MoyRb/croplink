@@ -75,6 +75,7 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
     items: [
       { label: 'Lista', to: '/monitoreos/lista' },
       { label: 'Crear', to: '/monitoreos/crear' },
+      { label: 'Gráficas', to: '/monitoreos/graficas' },
     ],
   },
   {
