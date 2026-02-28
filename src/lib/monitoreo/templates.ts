@@ -44,12 +44,13 @@ export const DESARROLLO_TEMPLATES: Record<EtapaFenologica, MetricTemplate[]> = {
 
 const ROOT_METRICS: MetricTemplate[] = [
   { key: 'raiz_longitud_cm', label: 'Longitud de raíz (cm)', required: true },
-  { key: 'raiz_diametro_mm', label: 'Diámetro de raíz (mm)' },
+  { key: 'raiz_blanca_pct', label: 'Raíz blanca (%)', required: true },
   {
     key: 'raiz_color',
     label: 'Color de raíz',
     type: 'select',
-    options: ['Blanco', 'Crema', 'Café', 'Negro'],
+    options: ['Blanca', 'Crema', 'Café', 'Negra'],
+    required: true,
   },
   {
     key: 'raiz_vigor',
@@ -57,6 +58,7 @@ const ROOT_METRICS: MetricTemplate[] = [
     type: 'select',
     options: ['Bajo', 'Medio', 'Alto'],
   },
+  { key: 'notas_raiz', label: 'Notas de raíz', type: 'text' },
 ]
 
 export const shouldShowRootMetrics = (
