@@ -9,6 +9,7 @@ import { MarketplaceCompararPage } from '../pages/marketplace/MarketplaceCompara
 import { InventarioInsumosPage } from '../pages/inventario/InventarioInsumosPage'
 import { InventarioMovimientosPage } from '../pages/inventario/InventarioMovimientosPage'
 import { MonitoreosCrearPage } from '../pages/monitoreos/MonitoreosCrearPage'
+import { MonitoreosGraficasPage } from '../pages/monitoreos/MonitoreosGraficasPage'
 import { MonitoreosIniciarPage } from '../pages/monitoreos/MonitoreosIniciarPage'
 import { MonitoreosListaPage } from '../pages/monitoreos/MonitoreosListaPage'
 import { MonitoreosResumenPage } from '../pages/monitoreos/MonitoreosResumenPage'
@@ -101,6 +102,7 @@ export function AppRouter() {
         <Route path="/monitoreos" element={<Navigate to="/monitoreos/lista" replace />} />
         <Route path="/monitoreos/lista" element={<MonitoreosListaPage />} />
         <Route path="/monitoreos/crear" element={<MonitoreosCrearPage />} />
+        <Route path="/monitoreos/graficas" element={<MonitoreosGraficasPage />} />
         <Route path="/monitoreos/iniciar/:sessionId" element={<MonitoreosIniciarPage />} />
         <Route path="/monitoreos/sesion/:id" element={<MonitoreosSesionPage />} />
         <Route path="/monitoreos/resumen/:id" element={<MonitoreosResumenPage />} />
