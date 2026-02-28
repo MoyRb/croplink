@@ -28,6 +28,7 @@ export function MonitoreosSesionPage() {
   const [activePlant, setActivePlant] = useState(0)
   const [sessionState, setSessionState] = useState(() => getSessionById(id) ?? null)
   const [rootLengthError, setRootLengthError] = useState('')
+  const [rootWhitePctError, setRootWhitePctError] = useState('')
 
   const session = sessionState
   if (!session) return <Navigate to="/monitoreos/lista" replace />
@@ -58,6 +59,16 @@ export function MonitoreosSesionPage() {
     }
 
     if (key === 'raiz_longitud_cm') setRootLengthError('')
+
+    if (key === 'raiz_blanca_pct' && rawValue !== '') {
+      const pct = Number(rawValue)
+      if (pct < 0 || pct > 100) {
+        setRootWhitePctError('El porcentaje de raíz blanca debe estar entre 0 y 100.')
+        return
+      }
+    }
+
+    if (key === 'raiz_blanca_pct') setRootWhitePctError('')
 
     persistSession((draft) => {
       const next = structuredClone(draft)
@@ -256,10 +267,13 @@ export function MonitoreosSesionPage() {
                     </select>
                   ) : (
                     <Input
-                      type="number"
-                      min={template.key === 'raiz_longitud_cm' ? 0 : undefined}
-                      step="any"
-                      placeholder={template.key === 'raiz_longitud_cm' ? 'cm' : template.key === 'raiz_diametro_mm' ? 'mm' : undefined}
+                      type={template.type === 'text' ? 'text' : 'number'}
+                      min={template.type !== 'text' && (template.key === 'raiz_longitud_cm' || template.key === 'raiz_blanca_pct') ? 0 : undefined}
+                      max={template.type !== 'text' && template.key === 'raiz_blanca_pct' ? 100 : undefined}
+                      step={template.type === 'text' ? undefined : 'any'}
+                      placeholder={
+                        template.key === 'raiz_longitud_cm' ? 'cm' : template.key === 'raiz_blanca_pct' ? '%' : undefined
+                      }
                       value={value?.toString() ?? ''}
                       onChange={(event) => saveMetric(template.key, event.target.value, rootTemplates)}
                     />
@@ -269,6 +283,7 @@ export function MonitoreosSesionPage() {
             })}
           </div>
           {rootLengthError ? <p className="text-sm text-red-600">{rootLengthError}</p> : null}
+          {rootWhitePctError ? <p className="text-sm text-red-600">{rootWhitePctError}</p> : null}
         </Card>
       ) : null}
 

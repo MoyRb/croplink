@@ -27,6 +27,7 @@ const METRIC_OPTIONS: MetricOption[] = [
   { value: 'diametro_fruto_mm', label: 'Diámetro fruto (mm)' },
   { value: 'peso_fruto_g', label: 'Peso fruto (g)' },
   { value: 'raiz_longitud_cm', label: 'Raíz longitud (cm)' },
+  { value: 'raiz_blanca_pct', label: 'Raíz blanca (%)' },
 ]
 
 const STATUS_LABELS: Record<MonitoringSession['status'], string> = {

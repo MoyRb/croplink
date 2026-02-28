@@ -73,6 +73,20 @@ export const collectThresholdViolations = (session: MonitoringSession): Threshol
 }
 
 
+
+export const calcAverageRootWhitePct = (session: MonitoringSession) => {
+  const values = session.sectors.flatMap((sector) =>
+    sector.points.flatMap((point) =>
+      point.plantas
+        .map((planta) => Number(planta.metrics.raiz_blanca_pct))
+        .filter((value) => Number.isFinite(value)),
+    ),
+  )
+
+  if (values.length === 0) return null
+  return values.reduce((acc, value) => acc + value, 0) / values.length
+}
+
 export const calcAverageRootLength = (session: MonitoringSession) => {
   const values = session.sectors.flatMap((sector) =>
     sector.points.flatMap((point) =>

@@ -132,6 +132,44 @@ export function MonitoreosCrearPage() {
     setThresholdRules((prev) => prev.filter((rule) => rule.id !== id))
   }
 
+  const upsertThresholdRule = (ruleMetric: string, values: { min?: number | null; max?: number | null }) => {
+    setThresholdRules((prev) => {
+      const existingIndex = prev.findIndex((rule) => rule.metric === ruleMetric)
+      const hasValues =
+        (values.min !== null && values.min !== undefined) || (values.max !== null && values.max !== undefined)
+
+      if (!hasValues) {
+        if (existingIndex < 0) return prev
+        return prev.filter((rule) => rule.metric !== ruleMetric)
+      }
+
+      if (existingIndex >= 0) {
+        const updated = [...prev]
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          metric: ruleMetric,
+          min: values.min,
+          max: values.max,
+        }
+        return updated
+      }
+
+      return [
+        ...prev,
+        {
+          id: getUuid(),
+          metric: ruleMetric,
+          min: values.min,
+          max: values.max,
+          unit: null,
+        },
+      ]
+    })
+  }
+
+  const rootWhiteThreshold = thresholdRules.find((rule) => rule.metric === 'raiz_blanca_pct')
+  const rootLengthThreshold = thresholdRules.find((rule) => rule.metric === 'raiz_longitud_cm')
+
   const handleIniciarMonitoreo = () => {
     if (!config.rancho.trim() || !config.cultivo.trim() || !config.sector.trim() || !config.etapaFenologica) {
       setFormError('Completa rancho, cultivo, sector y etapa para iniciar el monitoreo.')
@@ -371,6 +409,41 @@ export function MonitoreosCrearPage() {
 
       <Card className="space-y-4">
         <h2 className="font-semibold text-gray-900">Umbrales</h2>
+        <div className="grid gap-3 md:grid-cols-2">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="umbral-raiz-blanca">
+              Raíz blanca mínima (%)
+            </label>
+            <Input
+              id="umbral-raiz-blanca"
+              placeholder="Ej. 70"
+              type="number"
+              min={0}
+              max={100}
+              value={rootWhiteThreshold?.min ?? ''}
+              onChange={(event) => {
+                const parsed = parseNullableNumber(event.target.value)
+                upsertThresholdRule('raiz_blanca_pct', { min: parsed, max: null })
+              }}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="umbral-raiz-longitud">
+              Longitud mínima de raíz (cm) (opcional)
+            </label>
+            <Input
+              id="umbral-raiz-longitud"
+              placeholder="Ej. 8"
+              type="number"
+              min={0}
+              value={rootLengthThreshold?.min ?? ''}
+              onChange={(event) => {
+                const parsed = parseNullableNumber(event.target.value)
+                upsertThresholdRule('raiz_longitud_cm', { min: parsed, max: null })
+              }}
+            />
+          </div>
+        </div>
         <div className="grid gap-3 md:grid-cols-5">
           <Input placeholder="Métrica" value={metric} onChange={(event) => setMetric(event.target.value)} />
           <Input placeholder="Min" type="number" value={min} onChange={(event) => setMin(event.target.value)} />

@@ -5,6 +5,7 @@ import { Card } from '../../components/ui/Card'
 import {
   calcAverageDensity,
   calcAverageRootLength,
+  calcAverageRootWhitePct,
   calcDensity,
   collectThresholdViolations,
   countRootVigor,
@@ -20,8 +21,10 @@ export function MonitoreosResumenPage() {
   const violations = collectThresholdViolations(session)
   const avgDensity = calcAverageDensity(session)
   const avgRootLength = calcAverageRootLength(session)
+  const avgRootWhitePct = calcAverageRootWhitePct(session)
   const rootVigorCount = countRootVigor(session)
   const rootLengthViolations = violations.filter((violation) => violation.metric === 'raiz_longitud_cm')
+  const rootWhiteViolations = violations.filter((violation) => violation.metric === 'raiz_blanca_pct')
 
   return (
     <div className="space-y-6">
@@ -42,7 +45,7 @@ export function MonitoreosResumenPage() {
         </div>
       </Card>
 
-      <div className="grid gap-3 md:grid-cols-2">
+      <div className="grid gap-3 md:grid-cols-3">
         <Card>
           <p className="text-sm text-gray-500">Densidad promedio</p>
           <p className="text-3xl font-semibold text-gray-900">{avgDensity.toFixed(2)}</p>
@@ -50,6 +53,10 @@ export function MonitoreosResumenPage() {
         <Card>
           <p className="text-sm text-gray-500">Promedio raíz longitud (cm)</p>
           <p className="text-3xl font-semibold text-gray-900">{avgRootLength === null ? 'N/A' : avgRootLength.toFixed(2)}</p>
+        </Card>
+        <Card>
+          <p className="text-sm text-gray-500">Promedio raíz blanca (%)</p>
+          <p className="text-3xl font-semibold text-gray-900">{avgRootWhitePct === null ? 'N/A' : avgRootWhitePct.toFixed(2)}</p>
         </Card>
       </div>
 
@@ -97,6 +104,14 @@ export function MonitoreosResumenPage() {
         <p className="text-sm text-gray-500">
           Promedio raíz longitud: {avgRootLength === null ? 'N/A' : `${avgRootLength.toFixed(2)} cm`}
         </p>
+        <div className="flex items-center gap-2">
+          <p className="text-sm text-gray-500">
+            Promedio raíz blanca: {avgRootWhitePct === null ? 'N/A' : `${avgRootWhitePct.toFixed(2)}%`}
+          </p>
+          {rootWhiteViolations.length > 0 ? (
+            <Badge className="bg-red-100 text-red-700">Alerta de umbral</Badge>
+          ) : null}
+        </div>
         <div className="flex flex-wrap gap-2">
           {Object.keys(rootVigorCount).length === 0 ? (
             <p className="text-sm text-gray-500">Sin registros de vigor de raíz.</p>
@@ -112,6 +127,7 @@ export function MonitoreosResumenPage() {
         <h2 className="font-semibold text-gray-900">Indicadores de umbrales</h2>
         <p className="text-sm text-gray-500">Fuera de rango: {violations.length}</p>
         <p className="text-sm text-gray-500">Raíz longitud fuera de rango: {rootLengthViolations.length}</p>
+        <p className="text-sm text-gray-500">Raíz blanca fuera de rango: {rootWhiteViolations.length}</p>
         {violations.map((violation, index) => (
           <div key={`${violation.scope}-${index}`} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-2 text-sm">
             <span>
