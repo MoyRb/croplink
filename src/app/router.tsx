@@ -37,6 +37,9 @@ import { SectoresPage } from '../pages/configuracion/estructura/SectoresPage'
 import { TemporadasPage } from '../pages/configuracion/estructura/TemporadasPage'
 import { TunelesPage } from '../pages/configuracion/estructura/TunelesPage'
 import { ValvulasPage } from '../pages/configuracion/estructura/ValvulasPage'
+import { CosechasListaPage } from '../pages/cosechas/CosechasListaPage'
+import { CosechasCrearPage } from '../pages/cosechas/CosechasCrearPage'
+import { CosechasDetallePage } from '../pages/cosechas/CosechasDetallePage'
 
 export function AppRouter() {
   return (
@@ -155,6 +158,9 @@ export function AppRouter() {
             </RequireRole>
           }
         />
+        <Route path="/cosechas/lista" element={<CosechasListaPage />} />
+        <Route path="/cosechas/crear" element={<CosechasCrearPage />} />
+        <Route path="/cosechas/:id" element={<CosechasDetallePage />} />
         <Route path="/configuracion" element={<Navigate to="/configuracion/estructura" replace />} />
         <Route path="/configuracion/estructura" element={<EstructuraPage />} />
         <Route path="/configuracion/estructura/operaciones" element={<OperacionesPage />} />
