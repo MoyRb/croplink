@@ -79,6 +79,8 @@ export type WorkLog = {
   createdAt: string
 }
 
+export type WorkLogDraft = Omit<WorkLog, 'id' | 'createdAt' | 'status' | 'amount' | 'paymentId'>
+
 export type Payment = {
   id: string
   type: PaymentType
@@ -303,19 +305,32 @@ export const resolveTarifaActividad = (params: {
   return [...matches].sort((a, b) => getScore(b) - getScore(a))[0]
 }
 
-export const addWorkLog = (data: Omit<WorkLog, 'id' | 'createdAt' | 'status' | 'amount' | 'paymentId'>) => {
-  const logs = getWorkLogs()
+const createWorkLog = (data: WorkLogDraft): WorkLog => {
   const amount = computeWorkLogAmount(data.payType, data.rateUsed, data.units)
-  const newLog: WorkLog = {
+  return {
     ...data,
     id: createId('WL'),
     amount,
     status: 'OPEN',
     createdAt: new Date().toISOString(),
   }
+}
+
+export const addWorkLog = (data: WorkLogDraft) => {
+  const logs = getWorkLogs()
+  const newLog = createWorkLog(data)
   const updated = [newLog, ...logs]
   writeStorage(STORAGE_KEYS.workLogs, updated)
   return updated
+}
+
+export const addWorkLogsBatch = (entries: WorkLogDraft[]) => {
+  if (entries.length === 0) return { workLogs: getWorkLogs(), createdLogs: [] as WorkLog[] }
+  const logs = getWorkLogs()
+  const createdLogs = entries.map((entry) => createWorkLog(entry))
+  const updated = [...createdLogs, ...logs]
+  writeStorage(STORAGE_KEYS.workLogs, updated)
+  return { workLogs: updated, createdLogs }
 }
 
 export const updateWorkLog = (workLog: WorkLog) => {

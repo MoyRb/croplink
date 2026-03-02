@@ -7,6 +7,7 @@ import {
   HardHat,
   Landmark,
   Sprout,
+  Wheat,
 } from 'lucide-react'
 
 import { ACTIVOS_ALLOWED_ROLES, type UserRole } from '../../lib/auth/roles'
@@ -76,6 +77,16 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
       { label: 'Lista', to: '/monitoreos/lista' },
       { label: 'Crear', to: '/monitoreos/crear' },
       { label: 'Gráficas', to: '/monitoreos/graficas' },
+    ],
+  },
+  {
+    id: 'cosechas',
+    label: 'Cosechas',
+    icon: Wheat,
+    matchPaths: ['/cosechas/'],
+    items: [
+      { label: 'Lista', to: '/cosechas/lista' },
+      { label: 'Crear', to: '/cosechas/crear' },
     ],
   },
   {
