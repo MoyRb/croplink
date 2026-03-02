@@ -87,6 +87,7 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
     items: [
       { label: 'Empleados', to: '/nomina/empleados' },
       { label: 'Registros', to: '/nomina/registros' },
+      { label: 'Tabulador', to: '/nomina/tabulador' },
       { label: 'Pagos', to: '/nomina/pagos' },
       { label: 'Reportes', to: '/nomina/reportes' },
     ],

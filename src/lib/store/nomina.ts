@@ -10,6 +10,19 @@ export type WorkLogStatus = 'OPEN' | 'PAID'
 
 export type PaymentType = 'PERIODO' | 'MANUAL'
 
+export type TasaUnidad = 'dia' | 'caja' | 'kg' | 'planta' | 'surco' | 'ha'
+
+export type TarifaActividad = {
+  id: string
+  actividad: string
+  unidad: TasaUnidad
+  tarifa: number
+  cultivo?: string
+  rancho?: string
+  temporada?: string
+  createdAt: string
+}
+
 export type Empleado = {
   id: string
   nombreCompleto: string
@@ -85,6 +98,7 @@ const STORAGE_KEYS = {
   pagos: 'croplink:nomina:pagos',
   workLogs: 'croplink:nomina:workLogs',
   nominaPayments: 'croplink:nomina:payments',
+  tabuladorTarifas: 'croplink:nomina:tabuladorTarifas',
 }
 
 const safeParse = <T>(value: string | null, fallback: T): T => {
@@ -233,6 +247,61 @@ export const upsertPago = (pago: RegistroPago) => {
 }
 
 export const getWorkLogs = () => readStorage<WorkLog[]>(STORAGE_KEYS.workLogs, [])
+
+export const getTarifasActividad = () => readStorage<TarifaActividad[]>(STORAGE_KEYS.tabuladorTarifas, [])
+
+export const addTarifaActividad = (data: Omit<TarifaActividad, 'id' | 'createdAt'>) => {
+  const tarifas = getTarifasActividad()
+  const nueva: TarifaActividad = {
+    ...data,
+    id: createId('TAR'),
+    createdAt: new Date().toISOString(),
+  }
+  const updated = [nueva, ...tarifas]
+  writeStorage(STORAGE_KEYS.tabuladorTarifas, updated)
+  return updated
+}
+
+export const updateTarifaActividad = (tarifa: TarifaActividad) => {
+  const tarifas = getTarifasActividad()
+  const updated = tarifas.map((item) => (item.id === tarifa.id ? tarifa : item))
+  writeStorage(STORAGE_KEYS.tabuladorTarifas, updated)
+  return updated
+}
+
+export const deleteTarifaActividad = (id: string) => {
+  const tarifas = getTarifasActividad()
+  const updated = tarifas.filter((item) => item.id !== id)
+  writeStorage(STORAGE_KEYS.tabuladorTarifas, updated)
+  return updated
+}
+
+export const resolveTarifaActividad = (params: {
+  actividad: string
+  rancho?: string
+  cultivo?: string
+  temporada?: string
+}) => {
+  const normalizedActivity = params.actividad.trim().toLowerCase()
+  if (!normalizedActivity) return null
+
+  const matches = getTarifasActividad().filter((tarifa) => {
+    if (tarifa.actividad.trim().toLowerCase() !== normalizedActivity) return false
+    if (tarifa.rancho && tarifa.rancho !== params.rancho) return false
+    if (tarifa.cultivo && tarifa.cultivo !== params.cultivo) return false
+    if (tarifa.temporada && tarifa.temporada !== params.temporada) return false
+    return true
+  })
+
+  if (matches.length === 0) return null
+
+  const getScore = (tarifa: TarifaActividad) =>
+    (tarifa.rancho ? 4 : 0) +
+    (tarifa.cultivo ? 2 : 0) +
+    (tarifa.temporada ? 1 : 0)
+
+  return [...matches].sort((a, b) => getScore(b) - getScore(a))[0]
+}
 
 export const addWorkLog = (data: Omit<WorkLog, 'id' | 'createdAt' | 'status' | 'amount' | 'paymentId'>) => {
   const logs = getWorkLogs()
