@@ -6,6 +6,7 @@ import {
   Gauge,
   HardHat,
   Landmark,
+  Leaf,
   Sprout,
   Wheat,
 } from 'lucide-react'
@@ -66,6 +67,16 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
       { label: 'Lista', to: '/activos/lista' },
       { label: 'Nuevo', to: '/activos/nuevo' },
       { label: 'Reportes', to: '/activos/reportes' },
+    ],
+  },
+  {
+    id: 'recomendaciones',
+    label: 'Recomendaciones',
+    icon: Leaf,
+    matchPaths: ['/recomendaciones/'],
+    items: [
+      { label: 'Lista', to: '/recomendaciones/lista' },
+      { label: 'Crear', to: '/recomendaciones/crear' },
     ],
   },
   {
