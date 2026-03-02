@@ -40,6 +40,9 @@ import { ValvulasPage } from '../pages/configuracion/estructura/ValvulasPage'
 import { CosechasListaPage } from '../pages/cosechas/CosechasListaPage'
 import { CosechasCrearPage } from '../pages/cosechas/CosechasCrearPage'
 import { CosechasDetallePage } from '../pages/cosechas/CosechasDetallePage'
+import { RecomendacionesListaPage } from '../pages/recomendaciones/RecomendacionesListaPage'
+import { RecomendacionesCrearPage } from '../pages/recomendaciones/RecomendacionesCrearPage'
+import { RecomendacionesDetallePage } from '../pages/recomendaciones/RecomendacionesDetallePage'
 
 export function AppRouter() {
   return (
@@ -161,6 +164,9 @@ export function AppRouter() {
         <Route path="/cosechas/lista" element={<CosechasListaPage />} />
         <Route path="/cosechas/crear" element={<CosechasCrearPage />} />
         <Route path="/cosechas/:id" element={<CosechasDetallePage />} />
+        <Route path="/recomendaciones/lista" element={<RecomendacionesListaPage />} />
+        <Route path="/recomendaciones/crear" element={<RecomendacionesCrearPage />} />
+        <Route path="/recomendaciones/:id" element={<RecomendacionesDetallePage />} />
         <Route path="/configuracion" element={<Navigate to="/configuracion/estructura" replace />} />
         <Route path="/configuracion/estructura" element={<EstructuraPage />} />
         <Route path="/configuracion/estructura/operaciones" element={<OperacionesPage />} />
