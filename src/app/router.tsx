@@ -18,6 +18,7 @@ import { NominaEmpleadosPage } from '../pages/nomina/NominaEmpleadosPage'
 import { NominaPagosPage } from '../pages/nomina/NominaPagosPage'
 import { NominaPeriodosPage } from '../pages/nomina/NominaPeriodosPage'
 import { NominaRegistrosPage } from '../pages/nomina/NominaRegistrosPage'
+import { NominaTabuladorPage } from '../pages/nomina/NominaTabuladorPage'
 import { NominaReportesPage } from '../pages/nomina/NominaReportesPage'
 import { RequisicionesCrearPage } from '../pages/requisiciones/RequisicionesCrearPage'
 import { RequisicionEjecucionPage } from '../pages/requisiciones/RequisicionEjecucionPage'
@@ -119,6 +120,14 @@ export function AppRouter() {
           element={
             <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
               <NominaRegistrosPage />
+            </RequireRole>
+          }
+        />
+        <Route
+          path="/nomina/tabulador"
+          element={
+            <RequireRole allowed={NOMINA_ALLOWED_ROLES}>
+              <NominaTabuladorPage />
             </RequireRole>
           }
         />

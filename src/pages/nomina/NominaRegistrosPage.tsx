@@ -13,7 +13,9 @@ import {
   deleteWorkLog,
   getEmployeeRateByPayType,
   getEmpleados,
+  getTarifasActividad,
   getWorkLogs,
+  resolveTarifaActividad,
   updateWorkLog,
   type PayScheme,
   type WorkLog,
@@ -25,6 +27,13 @@ const formatCurrency = (value: number) =>
     currency: 'MXN',
     maximumFractionDigits: 2,
   }).format(value)
+
+
+
+const unidadToPayType = (unidad?: string): PayScheme => {
+  if (!unidad) return 'POR_UNIDAD'
+  return unidad === 'dia' ? 'DIARIO' : 'POR_UNIDAD'
+}
 
 const initialForm = {
   date: new Date().toISOString().slice(0, 10),
@@ -49,6 +58,10 @@ export function NominaRegistrosPage() {
   const [toast, setToast] = useState('')
 
   const empleadosById = useMemo(() => Object.fromEntries(empleados.map((item) => [item.id, item])), [empleados])
+  const actividades = useMemo(
+    () => [...new Set(getTarifasActividad().map((item) => item.actividad.trim()).filter(Boolean))],
+    [modalOpen],
+  )
 
   const filteredLogs = useMemo(
     () =>
@@ -114,6 +127,16 @@ export function NominaRegistrosPage() {
       ...prev,
       payType,
       rateUsed: employee ? getEmployeeRateByPayType(employee, payType) : prev.rateUsed,
+    }))
+  }
+
+  const handleActivityChange = (activity: string) => {
+    const tarifa = resolveTarifaActividad({ actividad: activity, rancho: form.ranchId || undefined })
+    setForm((prev) => ({
+      ...prev,
+      activity,
+      payType: tarifa ? unidadToPayType(tarifa.unidad) : prev.payType,
+      rateUsed: tarifa ? tarifa.tarifa : prev.rateUsed,
     }))
   }
 
@@ -284,7 +307,16 @@ export function NominaRegistrosPage() {
             </div>
             <div>
               <label className="text-sm">Rancho (opcional)</label>
-              <select className="mt-2 w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={form.ranchId} onChange={(event) => setForm((prev) => ({ ...prev, ranchId: event.target.value }))}>
+              <select className="mt-2 w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={form.ranchId} onChange={(event) => {
+                  const ranchId = event.target.value
+                  const tarifa = resolveTarifaActividad({ actividad: form.activity, rancho: ranchId || undefined })
+                  setForm((prev) => ({
+                    ...prev,
+                    ranchId,
+                    payType: tarifa ? unidadToPayType(tarifa.unidad) : prev.payType,
+                    rateUsed: tarifa ? tarifa.tarifa : prev.rateUsed,
+                  }))
+                }}>
                 <option value="">Sin rancho</option>
                 {catalog.ranches.map((ranch) => (
                   <option key={ranch.id} value={ranch.id}>{ranch.name}</option>
@@ -301,7 +333,22 @@ export function NominaRegistrosPage() {
             </div>
             <div className="md:col-span-2">
               <label className="text-sm">Actividad</label>
-              <Input className="mt-2" value={form.activity} onChange={(event) => setForm((prev) => ({ ...prev, activity: event.target.value }))} />
+              <select
+                className="mt-2 w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+                value={form.activity}
+                onChange={(event) => handleActivityChange(event.target.value)}
+              >
+                <option value="">Selecciona actividad</option>
+                {actividades.map((activity) => (
+                  <option key={activity} value={activity}>{activity}</option>
+                ))}
+              </select>
+              <Input
+                className="mt-2"
+                placeholder="o captura una nueva actividad"
+                value={form.activity}
+                onChange={(event) => handleActivityChange(event.target.value)}
+              />
             </div>
             <div>
               <label className="text-sm">Tarifa usada</label>
