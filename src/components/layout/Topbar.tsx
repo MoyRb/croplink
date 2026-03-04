@@ -30,6 +30,8 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
     sectors,
     tunnels,
     valves,
+    isCatalogLoading,
+    hasStructureData,
     contextNotice,
     clearContextNotice,
     setOperation,
@@ -170,10 +172,22 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] p-3">
         <p className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Contexto de operación</p>
+        {!isCatalogLoading && !hasStructureData ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+            <span>No hay estructura operativa configurada.</span>
+            <Button type="button" className="px-3 py-1.5 text-xs" onClick={() => navigate('/configuracion/estructura')}>
+              Ir a Configuración → Estructura
+            </Button>
+          </div>
+        ) : null}
+
+        {isCatalogLoading ? <span className="text-xs text-gray-500">Cargando estructura...</span> : null}
+
         <select
           className={cn(selectStyles, 'min-w-40')}
           value={operationContext.operation?.id ?? ''}
           onChange={(event) => setOperation(event.target.value)}
+          disabled={isCatalogLoading || !hasStructureData}
         >
           <option value="">Operación</option>
           {operations.map((operation) => (
@@ -187,7 +201,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
           className={cn(selectStyles, 'min-w-40')}
           value={operationContext.ranch?.id ?? ''}
           onChange={(event) => setRanch(event.target.value)}
-          disabled={!operationContext.operation}
+          disabled={isCatalogLoading || !operationContext.operation}
         >
           <option value="">Rancho</option>
           {ranches.map((ranch) => (
@@ -201,7 +215,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
           className={cn(selectStyles, 'min-w-36')}
           value={operationContext.cropSeason?.id ?? ''}
           onChange={(event) => setCropSeason(event.target.value)}
-          disabled={!operationContext.ranch}
+          disabled={isCatalogLoading || !operationContext.ranch}
         >
           <option value="">Cultivo · Temporada</option>
           {cropSeasons.map((item) => (
@@ -215,7 +229,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
           className={cn(selectStyles, 'min-w-28')}
           value={operationContext.sector?.id ?? ''}
           onChange={(event) => setSector(event.target.value)}
-          disabled={!operationContext.ranch || sectors.length === 0}
+          disabled={isCatalogLoading || !operationContext.ranch || sectors.length === 0}
         >
           <option value="">Sector</option>
           {sectors.map((sector) => (
@@ -229,7 +243,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
           className={cn(selectStyles, 'min-w-28')}
           value={operationContext.tunnel?.id ?? ''}
           onChange={(event) => setTunnel(event.target.value)}
-          disabled={!operationContext.sector || tunnels.length === 0}
+          disabled={isCatalogLoading || !operationContext.sector || tunnels.length === 0}
         >
           <option value="">Túnel</option>
           {tunnels.map((tunnel) => (
@@ -243,7 +257,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
           className={cn(selectStyles, 'min-w-28')}
           value={operationContext.valve?.id ?? ''}
           onChange={(event) => setValve(event.target.value)}
-          disabled={!operationContext.sector || valves.length === 0}
+          disabled={isCatalogLoading || !operationContext.sector || valves.length === 0}
         >
           <option value="">Válvula</option>
           {valves.map((valve) => (
