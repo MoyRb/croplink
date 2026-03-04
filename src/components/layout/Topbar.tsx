@@ -174,7 +174,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
         <p className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Contexto de operación</p>
         {!isCatalogLoading && !hasStructureData ? (
           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-            <span>No hay estructura operativa configurada.</span>
+            <span>No hay estructura.</span>
             <Button type="button" className="px-3 py-1.5 text-xs" onClick={() => navigate('/configuracion/estructura')}>
               Ir a Configuración → Estructura
             </Button>

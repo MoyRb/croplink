@@ -39,8 +39,6 @@ type MonitoringSessionPayload = {
   startedAt: string
 }
 
-const mockRanches = ['Rancho Norte', 'Rancho Sur']
-const mockCultivos = ['Tomate', 'Pepino', 'Pimiento']
 
 const getUuid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`)
 
@@ -78,7 +76,7 @@ export function MonitoreosCrearPage() {
   const [formError, setFormError] = useState('')
 
   const availableRanches = useMemo(
-    () => (ranches.length > 0 ? ranches.map((item) => item.name) : mockRanches),
+    () => ranches.map((item) => item.name),
     [ranches],
   )
 
@@ -239,7 +237,7 @@ export function MonitoreosCrearPage() {
             onChange={(event) => setConfig((prev) => ({ ...prev, cultivo: event.target.value }))}
           >
             <option value="">Cultivo</option>
-            {(cropSeasons.length > 0 ? cropSeasons.map((item) => item.name) : mockCultivos).map((name) => (
+            {cropSeasons.map((item) => item.name).map((name) => (
               <option key={name}>{name}</option>
             ))}
           </select>

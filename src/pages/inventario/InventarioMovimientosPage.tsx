@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -32,13 +32,18 @@ export function InventarioMovimientosPage() {
   const [refType, setRefType] = useState('')
   const [refId, setRefId] = useState('')
 
-  const [items, setItems] = useState(() => getInventoryItems())
-  const [movements, setMovements] = useState(() => getInventoryMovements())
+  const [items, setItems] = useState<Awaited<ReturnType<typeof getInventoryItems>>>([])
+  const [movements, setMovements] = useState<Awaited<ReturnType<typeof getInventoryMovements>>>([])
 
-  const refresh = () => {
-    setItems(getInventoryItems())
-    setMovements(getInventoryMovements())
+  const refresh = async () => {
+    const [nextItems, nextMovements] = await Promise.all([getInventoryItems(), getInventoryMovements()])
+    setItems(nextItems)
+    setMovements(nextMovements)
   }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
 
   const itemsById = useMemo(() => {
     const map = new Map<string, string>()
@@ -58,13 +63,13 @@ export function InventarioMovimientosPage() {
       })
   }, [movements, refIdFilter, refTypeFilter, typeFilter])
 
-  const handleCreateMovement = (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateMovement = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const selectedItem = items.find((item) => item.id === itemId)
     const qtyNumber = Number(qty)
     if (!selectedItem || !qtyNumber) return
 
-    registerInventoryMovement({
+    await registerInventoryMovement({
       date: new Date(date).toISOString(),
       type,
       itemId,
@@ -78,7 +83,7 @@ export function InventarioMovimientosPage() {
     setQty('')
     setNotes('')
     setRefId('')
-    refresh()
+    await refresh()
   }
 
   return (

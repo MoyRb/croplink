@@ -72,6 +72,8 @@ export function RequisicionesCrearPage() {
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'offer-selected')
   const [duplicateToastVisible, setDuplicateToastVisible] = useState(false)
   const [missingRanchToastVisible, setMissingRanchToastVisible] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const [cultivo, setCultivo] = useState<(typeof cultivosDisponibles)[number]>('Arándano')
   const [tipoProblema, setTipoProblema] = useState<(typeof tiposPlaga)[number]>('Plaga')
@@ -89,7 +91,7 @@ export function RequisicionesCrearPage() {
   const [searchIndex, setSearchIndex] = useState<SearchIndex | null>(null)
   const [itemsRequisicion, setItemsRequisicion] = useState<RequisicionItem[]>([])
   const [hasSearched, setHasSearched] = useState(false)
-  const [inventoryItems] = useState<InventoryItem[]>(() => getInventoryItems())
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
   const [insumoQuery, setInsumoQuery] = useState('')
   const [insumoSeleccionado, setInsumoSeleccionado] = useState<InventoryItem | null>(null)
   const [insumoCantidad, setInsumoCantidad] = useState('1')
@@ -344,8 +346,9 @@ export function RequisicionesCrearPage() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    setSubmitError('')
 
     if (!producto || !cantidadNumero || cantidadNumero <= 0) {
       return
@@ -370,26 +373,42 @@ export function RequisicionesCrearPage() {
 
     const total = offerMatches ? selectedOffer.offer.precioTotal : cantidadNumero * unitRates[unidad]
 
-    addRequisicion({
-      producto,
-      cantidad: cantidadNumero,
-      unidad,
-      centroCosto,
-      prioridad,
-      notas: notas.trim() || undefined,
-      items: itemsRequisicion,
-      operationContext,
-      total,
-      adjunto: archivo
-        ? {
-            nombre: archivo.name,
-            tamano: formatFileSize(archivo.size),
-          }
-        : undefined,
-    })
+    setIsSubmitting(true)
+    try {
+      await addRequisicion({
+        producto,
+        cantidad: cantidadNumero,
+        unidad,
+        centroCosto,
+        prioridad,
+        notas: notas.trim() || undefined,
+        items: itemsRequisicion,
+        operationContext,
+        total,
+        adjunto: archivo
+          ? {
+              nombre: archivo.name,
+              tamano: formatFileSize(archivo.size),
+            }
+          : undefined,
+      })
 
-    navigate('/requisiciones/lista', { state: { toast: 'created' } })
+      navigate('/requisiciones/lista', { state: { toast: 'created' } })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Creación pendiente backend'
+      setSubmitError(message || 'Creación pendiente backend')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
+
+  useEffect(() => {
+    const loadInventory = async () => {
+      setInventoryItems(await getInventoryItems())
+    }
+
+    void loadInventory()
+  }, [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -577,6 +596,7 @@ export function RequisicionesCrearPage() {
       {toastVisible ? <Toast variant="success">Oferta seleccionada</Toast> : null}
       {duplicateToastVisible ? <Toast variant="info">Ya agregado</Toast> : null}
       {missingRanchToastVisible ? <Toast variant="error">Selecciona un rancho antes de crear la requisición.</Toast> : null}
+      {submitError ? <Toast variant="error">{submitError}</Toast> : null}
 
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -1127,7 +1147,7 @@ export function RequisicionesCrearPage() {
             <Button type="button" variant="ghost" onClick={() => navigate('/requisiciones/lista')}>
               Cancelar
             </Button>
-            <Button type="submit">Crear requisición</Button>
+            <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Creando...' : 'Crear requisición'}</Button>
           </div>
         </form>
       </Card>

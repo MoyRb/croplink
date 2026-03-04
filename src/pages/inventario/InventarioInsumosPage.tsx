@@ -1,4 +1,4 @@
-import { type FormEvent, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
 
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
@@ -32,14 +32,22 @@ const emptyForm: ItemFormState = {
 }
 
 export function InventarioInsumosPage() {
-  const [items, setItems] = useState<InventoryItem[]>(() => getInventoryItems())
+  const [items, setItems] = useState<InventoryItem[]>([])
+  const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [categoriaFilter, setCategoriaFilter] = useState('')
   const [ubicacionFilter, setUbicacionFilter] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<ItemFormState>(emptyForm)
 
-  const refresh = () => setItems(getInventoryItems())
+  const refresh = async () => {
+    setError('')
+    setItems(await getInventoryItems())
+  }
+
+  useEffect(() => {
+    void refresh()
+  }, [])
 
   const categorias = useMemo(
     () => Array.from(new Set(items.map((item) => item.categoria).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'es')),
@@ -63,7 +71,7 @@ export function InventarioInsumosPage() {
       })
   }, [categoriaFilter, items, query, ubicacionFilter])
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const payload = {
       sku: form.sku.trim(),
@@ -78,14 +86,14 @@ export function InventarioInsumosPage() {
     if (!payload.sku || !payload.nombre || !payload.unidad) return
 
     if (editingId) {
-      updateInventoryItem(editingId, payload)
+      await updateInventoryItem(editingId, payload)
     } else {
-      createInventoryItem(payload)
+      await createInventoryItem(payload)
     }
 
     setEditingId(null)
     setForm(emptyForm)
-    refresh()
+    await refresh()
   }
 
   const handleEdit = (item: InventoryItem) => {
@@ -101,9 +109,9 @@ export function InventarioInsumosPage() {
     })
   }
 
-  const handleDelete = (itemId: string) => {
-    deleteInventoryItem(itemId)
-    refresh()
+  const handleDelete = async (itemId: string) => {
+    await deleteInventoryItem(itemId)
+    await refresh()
     if (editingId === itemId) {
       setEditingId(null)
       setForm(emptyForm)
@@ -168,6 +176,8 @@ export function InventarioInsumosPage() {
           </label>
         </div>
       </Card>
+
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
       <Card>
         <div className="overflow-x-auto">
