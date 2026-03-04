@@ -26,3 +26,10 @@ export async function getMyProfile(userId: string) {
     .eq('id', userId)
     .single<MyProfile>()
 }
+
+export async function updateMyProfileFullName(userId: string, fullName: string) {
+  return supabase
+    .from('profiles')
+    .update({ full_name: fullName })
+    .eq('id', userId)
+}

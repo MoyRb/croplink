@@ -1,48 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
-import { getMyProfile } from '../../lib/auth/helpers'
 import { useAuth } from '../../lib/auth/useAuth'
 import { supabase } from '../../lib/supabaseClient'
 
 export function OnboardingOrgPage() {
   const navigate = useNavigate()
-  const { user, loading } = useAuth()
+  const { user, loading, myProfile, myProfileLoaded, refreshMyProfile } = useAuth()
   const [orgName, setOrgName] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [hasOrganization, setHasOrganization] = useState(false)
-  const [profileResolved, setProfileResolved] = useState(false)
-
-  useEffect(() => {
-    if (!user?.id) return
-
-    let active = true
-
-    void getMyProfile(user.id)
-      .then(({ data }) => {
-        if (!active) return
-        setHasOrganization(Boolean(data?.organization_id))
-      })
-      .finally(() => {
-        if (!active) return
-        setProfileResolved(true)
-      })
-
-    return () => {
-      active = false
-    }
-  }, [user?.id])
 
   if (!loading && !user) {
     return <Navigate to="/login" replace />
   }
 
-  if (profileResolved && hasOrganization) {
+  if (myProfile?.organization_id) {
     return <Navigate to="/dashboard" replace />
   }
 
@@ -62,6 +39,7 @@ export function OnboardingOrgPage() {
       return
     }
 
+    await refreshMyProfile()
     navigate('/dashboard', { replace: true })
   }
 
@@ -87,7 +65,7 @@ export function OnboardingOrgPage() {
 
           {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
 
-          <Button className="w-full" disabled={submitting || (Boolean(user) && !profileResolved)} type="submit">
+          <Button className="w-full" disabled={submitting || !myProfileLoaded} type="submit">
             {submitting ? 'Guardando...' : 'Continuar'}
           </Button>
         </form>
