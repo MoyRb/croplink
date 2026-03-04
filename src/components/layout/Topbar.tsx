@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Menu } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
+import { Modal } from '../ui/Modal'
 import { Toast } from '../ui/Toast'
 import { useOperationContext } from '../../lib/store/operationContext'
-import { signOut } from '../../lib/auth/helpers'
+import { updateMyProfileFullName } from '../../lib/auth/helpers'
+import { useAuth } from '../../lib/auth/useAuth'
+import { supabase } from '../../lib/supabaseClient'
 import { cn } from '../../lib/utils'
 
 const selectStyles =
@@ -16,6 +20,8 @@ type TopbarProps = {
 }
 
 export function Topbar({ onMobileMenuClick }: TopbarProps) {
+  const navigate = useNavigate()
+  const { user, myProfile, refreshMyProfile } = useAuth()
   const {
     operationContext,
     operations,
@@ -34,13 +40,64 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
     setValve,
   } = useOperationContext()
   const [signOutError, setSignOutError] = useState<string | null>(null)
+  const [profileModalOpen, setProfileModalOpen] = useState(false)
+  const [fullNameDraft, setFullNameDraft] = useState('')
+  const [profileSaving, setProfileSaving] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+
+  const displayName = myProfile?.full_name?.trim() || user?.email || 'Usuario'
+  const roleLabel = (() => {
+    if (!myProfile?.role) return 'Sin rol'
+    const role = myProfile.role.toLowerCase().replace(/_/g, ' ')
+    return `${role.charAt(0).toUpperCase()}${role.slice(1)}`
+  })()
+  const avatarInitials = (() => {
+    const source = displayName.trim()
+    if (!source) return 'U'
+
+    if (source.includes('@')) {
+      return source.slice(0, 2).toUpperCase()
+    }
+
+    const words = source.split(/\s+/).filter(Boolean)
+    if (words.length === 1) {
+      return words[0].slice(0, 2).toUpperCase()
+    }
+
+    return `${words[0][0]}${words[1][0]}`.toUpperCase()
+  })()
 
   const handleSignOut = async () => {
     setSignOutError(null)
-    const { error } = await signOut()
+    const { error } = await supabase.auth.signOut()
     if (error) {
       setSignOutError(error.message)
+      return
     }
+
+    navigate('/login', { replace: true })
+  }
+
+  const openProfileModal = () => {
+    setProfileError(null)
+    setFullNameDraft(myProfile?.full_name ?? '')
+    setProfileModalOpen(true)
+  }
+
+  const saveProfile = async () => {
+    if (!user?.id) return
+    setProfileSaving(true)
+    setProfileError(null)
+    const { error } = await updateMyProfileFullName(user.id, fullNameDraft.trim())
+    if (error) {
+      setProfileError(error.message)
+      setProfileSaving(false)
+      return
+    }
+
+    await refreshMyProfile()
+    setProfileSaving(false)
+    setProfileModalOpen(false)
   }
   useEffect(() => {
     if (!contextNotice) return
@@ -68,15 +125,14 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
           <button className="rounded-full border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-gray-600">💬</button>
           <button className="rounded-full border border-[#E5E7EB] bg-white px-3 py-2 text-sm text-gray-600">🔔</button>
           <div className="flex items-center gap-3 rounded-full border border-[#E5E7EB] bg-white px-3 py-2">
-            <div className="h-8 w-8 rounded-full bg-[#DBFAE6] text-center text-sm font-semibold text-[#0B6B2A]">CC</div>
+            <div className="h-8 w-8 rounded-full bg-[#DBFAE6] text-center text-sm font-semibold leading-8 text-[#0B6B2A]">{avatarInitials}</div>
             <div className="text-sm">
-              <div className="font-semibold text-gray-900">Camila Cruz</div>
-              <select className="text-xs text-gray-500 focus:outline-none">
-                <option>Administradora</option>
-                <option>Compras</option>
-                <option>Supervisor</option>
-              </select>
+              <div className="font-semibold text-gray-900">{displayName}</div>
+              <div className="text-xs text-gray-500">{roleLabel}</div>
             </div>
+            <Button type="button" variant="ghost" className="px-3 py-1.5 text-xs" onClick={openProfileModal}>
+              Mi perfil
+            </Button>
             <Button type="button" variant="secondary" className="px-3 py-1.5 text-xs" onClick={handleSignOut}>
               Cerrar sesión
             </Button>
@@ -86,6 +142,31 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
 
       {contextNotice ? <Toast>{contextNotice}</Toast> : null}
       {signOutError ? <Toast>{signOutError}</Toast> : null}
+
+      <Modal open={profileModalOpen} title="Mi perfil" onClose={() => setProfileModalOpen(false)} className="max-w-lg">
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-medium text-gray-700">Nombre completo</label>
+            <Input
+              className="mt-2"
+              value={fullNameDraft}
+              onChange={(event) => setFullNameDraft(event.target.value)}
+              placeholder="Escribe tu nombre"
+            />
+          </div>
+
+          {profileError ? <p className="text-sm text-red-600">{profileError}</p> : null}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setProfileModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="button" onClick={saveProfile} disabled={profileSaving}>
+              {profileSaving ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] p-3">
         <p className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Contexto de operación</p>
