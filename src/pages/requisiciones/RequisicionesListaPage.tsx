@@ -46,7 +46,7 @@ const formatDate = (value: string) =>
 export function RequisicionesListaPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { requisiciones } = useRequisicionesStore()
+  const { requisiciones, isLoading } = useRequisicionesStore()
   const [activeStatus, setActiveStatus] = useState<RequisicionEstado | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
   const [ranchFilter, setRanchFilter] = useState('Todos')
@@ -198,10 +198,13 @@ export function RequisicionesListaPage() {
               ))}
             </tbody>
           </Table>
-          {filteredRequisiciones.length === 0 ? (
-            <p className="py-6 text-center text-sm text-gray-500">
-              No encontramos requisiciones con esos filtros.
-            </p>
+          {isLoading ? (
+            <p className="py-6 text-center text-sm text-gray-500">Cargando requisiciones...</p>
+          ) : filteredRequisiciones.length === 0 ? (
+            <div className="space-y-2 py-6 text-center">
+              <p className="text-sm text-gray-500">No hay requisiciones todavía.</p>
+              <Button onClick={() => navigate('/requisiciones/crear')}>Crear primera requisición</Button>
+            </div>
           ) : null}
         </div>
       </Card>

@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+
+import { supabase } from '../supabaseClient'
 
 export type RequisicionEstado =
   | 'Pendiente'
@@ -90,131 +92,209 @@ export type NuevaRequisicion = Omit<Requisicion, 'id' | 'estado' | 'fecha' | 'to
   estado?: RequisicionEstado
 }
 
-const STORAGE_KEY = 'croplink.requisiciones'
+type RequisitionStatusDb = 'pending' | 'in_review' | 'in_comparative' | 'approved' | 'rejected' | 'completed'
+type RequisitionItemTypeDb = 'agroquimico' | 'insumo_general' | 'benefico'
 
-const requisicionesIniciales: Requisicion[] = [
-  {
-    id: 'REQ-2042',
-    producto: 'Fertilizante NPK 20-10-10',
-    cantidad: 25,
-    unidad: 'kg',
-    centroCosto: 'Operaciones',
-    prioridad: 'Alta',
-    notas: 'Entrega requerida antes del cierre de mes.',
-    estado: 'En revisión',
-    total: 4800,
-    fecha: '2024-06-02',
-    adjunto: {
-      nombre: 'Ficha-tecnica-npk.pdf',
-      tamano: '1.2 MB',
-      url: '/docs/ficha-tecnica-npk.pdf',
-    },
-  },
-  {
-    id: 'REQ-2043',
-    producto: 'Lubricante hidráulico ISO 68',
-    cantidad: 40,
-    unidad: 'L',
-    centroCosto: 'Mantenimiento',
-    prioridad: 'Media',
-    notas: 'Reponer stock para cuadrillas nocturnas.',
-    estado: 'En comparativa',
-    total: 9200,
-    fecha: '2024-06-04',
-  },
-  {
-    id: 'REQ-2044',
-    producto: 'Sacos de semillas certificadas',
-    cantidad: 120,
-    unidad: 'pza',
-    centroCosto: 'Compras',
-    prioridad: 'Alta',
-    notas: 'Coordinar con proveedor homologado.',
-    estado: 'Aprobada',
-    total: 12000,
-    fecha: '2024-06-06',
-    adjunto: {
-      nombre: 'Semillas-certificadas.pdf',
-      tamano: '860 KB',
-      url: '/docs/semillas-certificadas.pdf',
-    },
-  },
-  {
-    id: 'REQ-2045',
-    producto: 'Tubería PVC 2"',
-    cantidad: 80,
-    unidad: 'pza',
-    centroCosto: 'Campo',
-    prioridad: 'Media',
-    notas: 'Reforzar líneas secundarias de riego.',
-    estado: 'Pendiente',
-    total: 6400,
-    fecha: '2024-06-08',
-  },
-  {
-    id: 'REQ-2046',
-    producto: 'Herbicida selectivo post-emergente',
-    cantidad: 18,
-    unidad: 'L',
-    centroCosto: 'Operaciones',
-    prioridad: 'Alta',
-    notas: 'Aplicación programada para la próxima semana.',
-    estado: 'Rechazada',
-    total: 5700,
-    fecha: '2024-06-09',
-  },
-  {
-    id: 'REQ-2047',
-    producto: 'Kit de sensores de humedad',
-    cantidad: 6,
-    unidad: 'pza',
-    centroCosto: 'Mantenimiento',
-    prioridad: 'Baja',
-    notas: 'Finalizar instalación en lote norte.',
-    estado: 'Completada',
-    total: 3100,
-    fecha: '2024-06-01',
-  },
-]
-
-const getStoredRequisiciones = () => {
-  if (typeof window === 'undefined') {
-    return requisicionesIniciales
-  }
-
-  const stored = window.localStorage.getItem(STORAGE_KEY)
-  if (!stored) {
-    return requisicionesIniciales
-  }
-
-  try {
-    const parsed = JSON.parse(stored)
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed as Requisicion[]
-    }
-  } catch {
-    return requisicionesIniciales
-  }
-
-  return requisicionesIniciales
+type RequisitionDb = {
+  id: string
+  folio: string | null
+  status: RequisitionStatusDb
+  cost_center: string | null
+  priority: string | null
+  requested_date: string | null
+  notes: string | null
+  operation_id: string | null
+  ranch_id: string | null
+  ranch_crop_season_id: string | null
+  sector_id: string | null
+  tunnel_id: string | null
+  valve_id: string | null
+  operations: { id: string; name: string } | { id: string; name: string }[] | null
+  ranches: { id: string; name: string } | { id: string; name: string }[] | null
+  ranch_crop_seasons: {
+    id: string
+    crops: { name: string } | { name: string }[] | null
+    seasons: { label: string } | { label: string }[] | null
+  } | null
+  sectors: { id: string; name: string } | { id: string; name: string }[] | null
+  tunnels: { id: string; name: string } | { id: string; name: string }[] | null
+  valves: { id: string; name: string } | { id: string; name: string }[] | null
+  requisition_items: RequisitionItemDb[] | null
 }
 
-const getNextRequisicionId = (requisiciones: Requisicion[]) => {
-  const max = requisiciones.reduce((acc, requisicion) => {
-    const numeric = Number(requisicion.id.replace(/\D/g, ''))
-    return Number.isNaN(numeric) ? acc : Math.max(acc, numeric)
-  }, 2000)
+type RequisitionItemDb = {
+  id: string
+  item_type: RequisitionItemTypeDb
+  product_id: string | null
+  commercial_name: string | null
+  active_ingredient: string | null
+  quantity: number
+  unit: string
+  notes: string | null
+  metadata: Record<string, unknown>
+}
 
-  return `REQ-${String(max + 1).padStart(4, '0')}`
+type RequisitionItemInsert = {
+  organization_id: string
+  requisition_id: string
+  item_type: RequisitionItemTypeDb
+  product_id: string | null
+  commercial_name: string
+  active_ingredient: string | null
+  quantity: number
+  unit: string
+  notes: string | null
+  metadata: Record<string, unknown>
+}
+
+const statusFromDb: Record<RequisitionStatusDb, RequisicionEstado> = {
+  pending: 'Pendiente',
+  in_review: 'En revisión',
+  in_comparative: 'En comparativa',
+  approved: 'Aprobada',
+  rejected: 'Rechazada',
+  completed: 'Completada',
+}
+
+const statusToDb: Record<RequisicionEstado, RequisitionStatusDb> = {
+  Pendiente: 'pending',
+  'En revisión': 'in_review',
+  'En comparativa': 'in_comparative',
+  Aprobada: 'approved',
+  Rechazada: 'rejected',
+  Completada: 'completed',
+}
+
+const itemTypeToDb: Record<RequisicionItemType, RequisitionItemTypeDb> = {
+  AGROQUIMICO: 'agroquimico',
+  INSUMO_GENERAL: 'insumo_general',
+  BENEFICO: 'benefico',
+}
+
+const fromMaybeArray = <T,>(value: T | T[] | null | undefined): T | null => {
+  if (Array.isArray(value)) return value[0] ?? null
+  return value ?? null
+}
+
+const resolveCropSeason = (value: RequisitionDb['ranch_crop_seasons']) => {
+  if (!value) return null
+  const crop = fromMaybeArray(value.crops)?.name
+  const season = fromMaybeArray(value.seasons)?.label
+  return {
+    id: value.id,
+    name: [crop, season].filter(Boolean).join(' · ') || 'Cultivo · Temporada',
+    crop,
+    season,
+  }
+}
+
+const mapRequisitionItem = (item: RequisitionItemDb): RequisicionItem => {
+  const metadata = (item.metadata ?? {}) as Record<string, unknown>
+  const tipo = item.item_type === 'agroquimico' ? 'AGROQUIMICO' : item.item_type === 'insumo_general' ? 'INSUMO_GENERAL' : 'BENEFICO'
+  return {
+    id: item.id,
+    tipo,
+    product_id: item.product_id ?? item.id,
+    commercial_name: item.commercial_name ?? 'Sin nombre',
+    active_ingredient: item.active_ingredient ?? undefined,
+    quantity: Number(item.quantity ?? 0),
+    unit: item.unit,
+    notes: item.notes ?? undefined,
+    metadata: tipo === 'AGROQUIMICO' ? (metadata as RequisicionItemMetadata) : undefined,
+    benefico: tipo === 'BENEFICO' ? ((metadata.benefico as RequisicionBeneficoMetadata | undefined) ?? undefined) : undefined,
+  }
+}
+
+const mapRequisition = (row: RequisitionDb): Requisicion => {
+  const firstItem = row.requisition_items?.[0]
+  const cropSeason = resolveCropSeason(row.ranch_crop_seasons)
+  return {
+    id: row.folio || row.id,
+    producto: firstItem?.commercial_name ?? 'Sin productos',
+    cantidad: Number(firstItem?.quantity ?? 0),
+    unidad: (firstItem?.unit as Requisicion['unidad']) ?? 'pza',
+    centroCosto: (row.cost_center as Requisicion['centroCosto']) ?? 'Operaciones',
+    prioridad: (row.priority as Requisicion['prioridad']) ?? 'Media',
+    notas: row.notes ?? undefined,
+    estado: statusFromDb[row.status],
+    total: 0,
+    fecha: row.requested_date ?? new Date().toISOString().slice(0, 10),
+    items: (row.requisition_items ?? []).map(mapRequisitionItem),
+    operationContext: {
+      operation: fromMaybeArray(row.operations),
+      ranch: fromMaybeArray(row.ranches),
+      crop: cropSeason?.crop,
+      season: cropSeason?.season,
+      cropSeason: cropSeason ? { id: cropSeason.id, name: cropSeason.name } : null,
+      sector: fromMaybeArray(row.sectors),
+      tunnel: fromMaybeArray(row.tunnels),
+      valve: fromMaybeArray(row.valves),
+    },
+  }
 }
 
 export function useRequisicionesStore() {
-  const [requisiciones, setRequisiciones] = useState<Requisicion[]>(() => getStoredRequisiciones())
+  const [requisiciones, setRequisiciones] = useState<Requisicion[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  const loadRequisiciones = useCallback(async () => {
+    setIsLoading(true)
+    const { data, error } = await supabase
+      .from('requisitions')
+      .select(
+        `
+        id,
+        folio,
+        status,
+        cost_center,
+        priority,
+        requested_date,
+        notes,
+        operation_id,
+        ranch_id,
+        ranch_crop_season_id,
+        sector_id,
+        tunnel_id,
+        valve_id,
+        operations:operation_id (id, name),
+        ranches:ranch_id (id, name),
+        ranch_crop_seasons:ranch_crop_season_id (
+          id,
+          crops:crop_id (name),
+          seasons:season_id (label)
+        ),
+        sectors:sector_id (id, name),
+        tunnels:tunnel_id (id, name),
+        valves:valve_id (id, name),
+        requisition_items (
+          id,
+          item_type,
+          product_id,
+          commercial_name,
+          active_ingredient,
+          quantity,
+          unit,
+          notes,
+          metadata
+        )
+      `,
+      )
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error obteniendo requisiciones:', error)
+      setRequisiciones([])
+      setIsLoading(false)
+      return
+    }
+
+    setRequisiciones((((data as unknown) as RequisitionDb[] | null) ?? []).map(mapRequisition))
+    setIsLoading(false)
+  }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(requisiciones))
-  }, [requisiciones])
+    void loadRequisiciones()
+  }, [loadRequisiciones])
 
   const stats = useMemo(() => {
     const pendientes = requisiciones.filter((requisicion) => requisicion.estado === 'Pendiente').length
@@ -223,31 +303,91 @@ export function useRequisicionesStore() {
     return { pendientes, enRevision, comparativa }
   }, [requisiciones])
 
-  const addRequisicion = (data: NuevaRequisicion) => {
-    setRequisiciones((prev) => {
-      const nueva: Requisicion = {
-        id: getNextRequisicionId(prev),
-        producto: data.producto,
-        cantidad: data.cantidad,
-        unidad: data.unidad,
-        centroCosto: data.centroCosto,
-        prioridad: data.prioridad,
-        notas: data.notas,
-        estado: data.estado ?? 'Pendiente',
-        total: data.total ?? 0,
-        fecha: data.fecha ?? new Date().toISOString().slice(0, 10),
-        adjunto: data.adjunto,
-        items: data.items ?? [],
-        operationContext: data.operationContext,
-      }
+  const addRequisicion = useCallback(async (data: NuevaRequisicion) => {
+    const [{ data: userData, error: userError }, { data: profileData, error: profileError }] = await Promise.all([
+      supabase.auth.getUser(),
+      supabase.from('profiles').select('organization_id').single<{ organization_id: string | null }>(),
+    ])
 
-      return [nueva, ...prev]
-    })
-  }
+    if (userError || profileError) {
+      throw new Error(userError?.message || profileError?.message || 'No fue posible preparar la requisición.')
+    }
+
+    const organizationId = profileData?.organization_id
+    if (!organizationId) {
+      throw new Error('No hay organización asociada al usuario.')
+    }
+
+    const payload = {
+      organization_id: organizationId,
+      status: statusToDb[data.estado ?? 'Pendiente'],
+      cost_center: data.centroCosto,
+      priority: data.prioridad,
+      requested_date: data.fecha ?? new Date().toISOString().slice(0, 10),
+      notes: data.notas ?? null,
+      operation_id: data.operationContext?.operation?.id ?? null,
+      ranch_id: data.operationContext?.ranch?.id ?? null,
+      ranch_crop_season_id: data.operationContext?.cropSeason?.id ?? null,
+      sector_id: data.operationContext?.sector?.id ?? null,
+      tunnel_id: data.operationContext?.tunnel?.id ?? null,
+      valve_id: data.operationContext?.valve?.id ?? null,
+      requested_by: userData.user?.id ?? null,
+    }
+
+    const { data: created, error: createError } = await supabase
+      .from('requisitions')
+      .insert(payload)
+      .select('id')
+      .single<{ id: string }>()
+
+    if (createError || !created) {
+      throw new Error(createError?.message || 'No se pudo crear la requisición.')
+    }
+
+    const itemsPayload: RequisitionItemInsert[] = (data.items ?? []).map((item) => ({
+      organization_id: organizationId,
+      requisition_id: created.id,
+      item_type: itemTypeToDb[item.tipo],
+      product_id: item.product_id || null,
+      commercial_name: item.commercial_name || data.producto,
+      active_ingredient: item.active_ingredient ?? null,
+      quantity: item.quantity,
+      unit: item.unit,
+      notes: item.notes ?? null,
+      metadata: {
+        ...(item.metadata ?? {}),
+        benefico: item.benefico,
+      },
+    }))
+
+    if (itemsPayload.length === 0) {
+      itemsPayload.push({
+        organization_id: organizationId,
+        requisition_id: created.id,
+        item_type: 'insumo_general',
+        product_id: null,
+        commercial_name: data.producto,
+        active_ingredient: null,
+        quantity: data.cantidad,
+        unit: data.unidad,
+        notes: data.notas ?? null,
+        metadata: {},
+      })
+    }
+
+    const { error: itemsError } = await supabase.from('requisition_items').insert(itemsPayload)
+    if (itemsError) {
+      throw new Error(itemsError.message)
+    }
+
+    await loadRequisiciones()
+  }, [loadRequisiciones])
 
   return {
     requisiciones,
     stats,
+    isLoading,
     addRequisicion,
+    refreshRequisiciones: loadRequisiciones,
   }
 }

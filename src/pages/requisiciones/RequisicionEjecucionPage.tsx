@@ -273,7 +273,7 @@ export function RequisicionEjecucionPage() {
     })
   }
 
-  const persistExecution = (status: ApplicationExecutionStatus) => {
+  const persistExecution = async (status: ApplicationExecutionStatus) => {
     const surfaceTotal = execution.mode === 'FOLIAR_DRENCH' ? foliarSuperficieTotal : irrigationRows.reduce((acc, row) => acc + row.superficie, 0)
 
     const currentInventoryLines = execution.inventory?.lines ?? inventoryLines
@@ -304,10 +304,11 @@ export function RequisicionEjecucionPage() {
 
     if (status === 'IN_PROGRESS' && !nextInventory.outPostedAt) {
       const postedOutIds: string[] = []
-      nextInventory.lines = nextInventory.lines.map((line) => {
-        const item = ensureInventoryItem({ sku: line.sku, nombre: line.nombre, unidad: line.unit })
+      const nextLines = [] as typeof nextInventory.lines
+      for (const line of nextInventory.lines) {
+        const item = await ensureInventoryItem({ sku: line.sku, nombre: line.nombre, unidad: line.unit })
         if (line.qtySalida > 0) {
-          const movement = registerInventoryMovement({
+          const movement = await registerInventoryMovement({
             date: now,
             type: 'OUT',
             itemId: item.id,
@@ -319,8 +320,9 @@ export function RequisicionEjecucionPage() {
           })
           postedOutIds.push(movement.id)
         }
-        return { ...line, itemId: item.id }
-      })
+        nextLines.push({ ...line, itemId: item.id })
+      }
+      nextInventory.lines = nextLines
       nextInventory.outMovementIds = postedOutIds
       nextInventory.outPostedAt = now
     }
@@ -329,12 +331,12 @@ export function RequisicionEjecucionPage() {
       const postedReturnIds: string[] = []
       const postedWasteIds: string[] = []
 
-      nextInventory.lines.forEach((line) => {
-        if (!line.itemId) return
+      for (const line of nextInventory.lines) {
+        if (!line.itemId) continue
 
         const qtyDevolucion = Math.max(0, line.qtySalida - line.qtyUsada)
         if (qtyDevolucion > 0) {
-          const movement = registerInventoryMovement({
+          const movement = await registerInventoryMovement({
             date: now,
             type: 'RETURN',
             itemId: line.itemId,
@@ -348,7 +350,7 @@ export function RequisicionEjecucionPage() {
         }
 
         if (line.qtyMerma > 0) {
-          const movement = registerInventoryMovement({
+          const movement = await registerInventoryMovement({
             date: now,
             type: 'WASTE',
             itemId: line.itemId,
@@ -360,7 +362,7 @@ export function RequisicionEjecucionPage() {
           })
           postedWasteIds.push(movement.id)
         }
-      })
+      }
 
       nextInventory.returnMovementIds = postedReturnIds
       nextInventory.wasteMovementIds = postedWasteIds

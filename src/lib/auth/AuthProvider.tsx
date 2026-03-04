@@ -62,7 +62,18 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (event === 'SIGNED_OUT' && typeof window !== 'undefined') {
+        const keysToClear = [
+          'croplink.requisiciones',
+          'croplink:inventory:items',
+          'croplink:inventory:movements',
+          'croplink.activos',
+          'croplink.mantenimientos',
+        ]
+        keysToClear.forEach((key) => window.localStorage.removeItem(key))
+      }
+
       setSession(nextSession)
       setUser(nextSession?.user ?? null)
       if (nextSession?.user?.id) {

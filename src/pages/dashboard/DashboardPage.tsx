@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import { Toast } from '../../components/ui/Toast'
+import { supabase } from '../../lib/supabaseClient'
+
+type DashboardRequisition = {
+  id: string
+  status: string
+  cost_center: string | null
+}
 
 export function DashboardPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'unauthorized')
+  const [requisitions, setRequisitions] = useState<DashboardRequisition[]>([])
 
   useEffect(() => {
     if (location.state?.toast === 'unauthorized') {
@@ -25,6 +32,36 @@ export function DashboardPage() {
     return () => window.clearTimeout(timer)
   }, [toastVisible])
 
+  useEffect(() => {
+    const loadDashboard = async () => {
+      const { data, error } = await supabase
+        .from('requisitions')
+        .select('id, status, cost_center')
+        .order('created_at', { ascending: false })
+        .limit(5)
+
+      if (error) {
+        console.error('Error cargando dashboard:', error)
+        setRequisitions([])
+        return
+      }
+
+      setRequisitions((data as DashboardRequisition[] | null) ?? [])
+    }
+
+    void loadDashboard()
+  }, [])
+
+  const metrics = useMemo(() => {
+    const abiertas = requisitions.filter((item) => item.status !== 'completed' && item.status !== 'rejected').length
+    const enCurso = requisitions.filter((item) => item.status === 'in_review' || item.status === 'in_comparative').length
+    return {
+      abiertas,
+      enCurso,
+      ahorroMensual: 0,
+    }
+  }, [requisitions])
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -32,25 +69,24 @@ export function DashboardPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
           <p className="text-sm text-gray-500">Resumen operativo y métricas clave.</p>
         </div>
-        <Button>Crear requisición</Button>
+        <Button onClick={() => navigate('/requisiciones/crear')}>Crear requisición</Button>
       </div>
 
       {toastVisible ? <Toast>No autorizado</Toast> : null}
 
       <div className="grid gap-6 md:grid-cols-3">
-        {[
-          { label: 'Requisiciones abiertas', value: '18', trend: '+6%' },
-          { label: 'Órdenes en curso', value: '12', trend: '+2%' },
-          { label: 'Ahorro mensual', value: '$24.5k', trend: '+11%' },
-        ].map((item) => (
-          <Card key={item.label}>
-            <div className="text-sm text-gray-500">{item.label}</div>
-            <div className="mt-3 text-2xl font-semibold text-gray-900">{item.value}</div>
-            <Badge className="mt-4" variant="success">
-              {item.trend} vs. mes anterior
-            </Badge>
-          </Card>
-        ))}
+        <Card>
+          <div className="text-sm text-gray-500">Requisiciones abiertas</div>
+          <div className="mt-3 text-2xl font-semibold text-gray-900">{metrics.abiertas}</div>
+        </Card>
+        <Card>
+          <div className="text-sm text-gray-500">Órdenes en curso</div>
+          <div className="mt-3 text-2xl font-semibold text-gray-900">{metrics.enCurso}</div>
+        </Card>
+        <Card>
+          <div className="text-sm text-gray-500">Ahorro mensual</div>
+          <div className="mt-3 text-2xl font-semibold text-gray-900">$0</div>
+        </Card>
       </div>
 
       <Card>
@@ -59,7 +95,7 @@ export function DashboardPage() {
             <h2 className="text-lg font-semibold text-gray-900">Últimas requisiciones</h2>
             <p className="text-sm text-gray-500">Seguimiento rápido de prioridades.</p>
           </div>
-          <Button variant="secondary">Ver todas</Button>
+          <Button variant="secondary" onClick={() => navigate('/requisiciones/lista')}>Ver todas</Button>
         </div>
         <div className="mt-4">
           <Table>
@@ -67,27 +103,22 @@ export function DashboardPage() {
               <tr>
                 <TableHead>ID</TableHead>
                 <TableHead>Área</TableHead>
-                <TableHead>Proveedor sugerido</TableHead>
                 <TableHead>Estado</TableHead>
               </tr>
             </thead>
             <tbody>
-              {[
-                { id: 'REQ-2034', area: 'Mantenimiento', vendor: 'GreenSupply', status: 'En revisión' },
-                { id: 'REQ-2035', area: 'Operaciones', vendor: 'SupplyOne', status: 'Aprobada' },
-                { id: 'REQ-2036', area: 'Compras', vendor: 'FarmHub', status: 'En comparativa' },
-              ].map((row) => (
+              {requisitions.map((row) => (
                 <TableRow key={row.id}>
                   <TableCell className="font-medium text-gray-900">{row.id}</TableCell>
-                  <TableCell>{row.area}</TableCell>
-                  <TableCell>{row.vendor}</TableCell>
-                  <TableCell>
-                    <Badge variant={row.status === 'Aprobada' ? 'success' : 'neutral'}>
-                      {row.status}
-                    </Badge>
-                  </TableCell>
+                  <TableCell>{row.cost_center || '—'}</TableCell>
+                  <TableCell>{row.status}</TableCell>
                 </TableRow>
               ))}
+              {requisitions.length === 0 ? (
+                <TableRow>
+                  <td colSpan={3} className="px-2 py-4 text-sm text-gray-500">No hay datos todavía.</td>
+                </TableRow>
+              ) : null}
             </tbody>
           </Table>
         </div>
