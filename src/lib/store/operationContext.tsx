@@ -225,7 +225,7 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
   const valves = useMemo(() => {
     if (!selectionIds.sectorId) return []
     return valvesCatalog
-      .filter((item) => item.sector_id === selectionIds.sectorId && (selectionIds.tunnelId ? item.tunnel_id === selectionIds.tunnelId : !item.tunnel_id))
+      .filter((item) => item.sector_id === selectionIds.sectorId && (selectionIds.tunnelId ? item.tunnel_id === selectionIds.tunnelId : true))
       .map((item) => ({ id: item.id, name: item.name }))
   }, [valvesCatalog, selectionIds.sectorId, selectionIds.tunnelId])
 
@@ -287,7 +287,13 @@ export function OperationContextProvider({ children }: PropsWithChildren) {
     return { operation, ranch, cropSeason, sector, tunnel, valve }
   }, [cropSeasons, operations, ranches, sectors, selectionIds, tunnels, valves])
 
-  const hasStructureData = operations.length > 0
+  const hasStructureData =
+    operations.length > 0 ||
+    ranchesCatalog.length > 0 ||
+    cropSeasonsCatalog.length > 0 ||
+    sectorsCatalog.length > 0 ||
+    tunnelsCatalog.length > 0 ||
+    valvesCatalog.length > 0
 
   const value: OperationContextValue = {
     operationContext,
