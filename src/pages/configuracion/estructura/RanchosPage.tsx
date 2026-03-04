@@ -1,29 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Button } from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
-import { OPERATION_CATALOG_UPDATED_EVENT, deleteRanch, getCatalog, upsertRanch } from '../../../lib/operationCatalog/repo'
+import { deleteRanchSupabase, upsertRanchSupabase } from '../../../lib/operationCatalog/supabaseRepo'
 import { DeleteModal, ModalActions, stopSubmit, useCrudFeedback, CrudShell } from './shared'
+import { useStructureCatalog } from './useStructureCatalog'
 
 export function RanchosPage() {
-  const [catalog, setCatalog] = useState(() => getCatalog())
+  const { catalog, isLoading, loadError, organizationId, reload } = useStructureCatalog()
   const [query, setQuery] = useState('')
   const [form, setForm] = useState({ id: '', operationId: '', name: '', description: '', location: '' })
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState('')
   const feedback = useCrudFeedback()
 
-  useEffect(() => {
-    const reload = () => setCatalog(getCatalog())
-    window.addEventListener(OPERATION_CATALOG_UPDATED_EVENT, reload)
-    return () => window.removeEventListener(OPERATION_CATALOG_UPDATED_EVENT, reload)
-  }, [])
-
   const rows = useMemo(() => catalog.ranches.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())), [catalog.ranches, query])
 
   return (
-    <CrudShell title="Ranchos" searchPlaceholder="Buscar rancho" query={query} setQuery={setQuery} onNew={() => { setForm({ id: '', operationId: '', name: '', description: '', location: '' }); setModalOpen(true) }} rows={rows} toastMessage={feedback.toastMessage} errorMessage={feedback.errorMessage}
+    <CrudShell title="Ranchos" searchPlaceholder="Buscar rancho" query={query} setQuery={setQuery} onNew={() => { setForm({ id: '', operationId: '', name: '', description: '', location: '' }); setModalOpen(true) }} rows={rows} toastMessage={feedback.toastMessage} errorMessage={feedback.errorMessage || loadError} isLoading={isLoading} emptyMessage="No hay ranchos registrados."
       renderRow={(item) => (
         <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-3">
           <div>
@@ -35,7 +30,7 @@ export function RanchosPage() {
       )}
     >
       <Modal open={modalOpen} title={form.id ? 'Editar rancho' : 'Nuevo rancho'} onClose={() => setModalOpen(false)}>
-        <form onSubmit={stopSubmit(() => feedback.run(() => { upsertRanch(form); setModalOpen(false) }, 'Rancho guardado.'))} className="space-y-2">
+        <form onSubmit={stopSubmit(() => feedback.run(async () => { if (!organizationId) throw new Error('Perfil sin organización asignada.'); await upsertRanchSupabase(organizationId, form); await reload(); setModalOpen(false) }, 'Rancho guardado.'))} className="space-y-2">
           <select className="w-full rounded-full border border-[#E5E7EB] px-3 py-2" value={form.operationId} onChange={(event) => setForm((prev) => ({ ...prev, operationId: event.target.value }))}>
             <option value="">Operación</option>
             {catalog.operations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
@@ -46,7 +41,7 @@ export function RanchosPage() {
           <ModalActions onClose={() => setModalOpen(false)} />
         </form>
       </Modal>
-      <DeleteModal open={Boolean(deleteId)} onClose={() => setDeleteId('')} onConfirm={() => feedback.run(() => { deleteRanch(deleteId); setDeleteId('') }, 'Rancho eliminado.')} />
+      <DeleteModal open={Boolean(deleteId)} onClose={() => setDeleteId('')} onConfirm={() => feedback.run(async () => { await deleteRanchSupabase(deleteId); await reload(); setDeleteId('') }, 'Rancho eliminado.')} />
     </CrudShell>
   )
 }
