@@ -46,7 +46,7 @@ const formatDate = (value: string) =>
 export function RequisicionesListaPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { requisiciones, isLoading } = useRequisicionesStore()
+  const { requisiciones, isLoading, loadError, refreshRequisiciones } = useRequisicionesStore()
   const [activeStatus, setActiveStatus] = useState<RequisicionEstado | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
   const [ranchFilter, setRanchFilter] = useState('Todos')
@@ -200,9 +200,17 @@ export function RequisicionesListaPage() {
           </Table>
           {isLoading ? (
             <p className="py-6 text-center text-sm text-gray-500">Cargando requisiciones...</p>
+          ) : loadError ? (
+            <div className="space-y-2 py-6 text-center">
+              <p className="text-sm text-red-600">No se pudo cargar requisiciones: {loadError}</p>
+              <Button variant="secondary" onClick={() => void refreshRequisiciones()}>
+                Reintentar
+              </Button>
+            </div>
           ) : filteredRequisiciones.length === 0 ? (
             <div className="space-y-2 py-6 text-center">
               <p className="text-sm text-gray-500">No hay requisiciones todavía.</p>
+              <p className="text-xs text-gray-400">Cuando crees una requisición aparecerá aquí automáticamente.</p>
               <Button onClick={() => navigate('/requisiciones/crear')}>Crear primera requisición</Button>
             </div>
           ) : null}
@@ -271,6 +279,25 @@ export function RequisicionesListaPage() {
                   {selected.notas || 'Sin notas adicionales.'}
                 </p>
               </div>
+            </div>
+
+
+            <div className="mt-6">
+              <h4 className="text-sm font-semibold text-gray-900">Items de requisición</h4>
+              {selected.items && selected.items.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {selected.items.map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-[#E5E7EB] bg-white p-3 text-sm">
+                      <p className="font-medium text-gray-900">{item.commercial_name}</p>
+                      <p className="text-xs text-gray-500">
+                        {item.quantity} {item.unit} · {item.tipo}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-gray-500">Esta requisición no tiene items registrados.</p>
+              )}
             </div>
 
             <div className="mt-6">

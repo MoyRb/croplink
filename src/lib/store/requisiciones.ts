@@ -147,6 +147,10 @@ type RequisitionItemInsert = {
   metadata: Record<string, unknown>
 }
 
+type ProfileOrgRow = {
+  organization_id: string | null
+}
+
 const statusFromDb: Record<RequisitionStatusDb, RequisicionEstado> = {
   pending: 'Pendiente',
   in_review: 'En revisión',
@@ -174,6 +178,36 @@ const itemTypeToDb: Record<RequisicionItemType, RequisitionItemTypeDb> = {
 const fromMaybeArray = <T,>(value: T | T[] | null | undefined): T | null => {
   if (Array.isArray(value)) return value[0] ?? null
   return value ?? null
+}
+
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const sanitizeProductId = (value?: string | null) => {
+  if (!value) return null
+  return uuidPattern.test(value) ? value : null
+}
+
+const getCurrentUserAndOrganization = async () => {
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError || !authData.user) {
+    throw new Error(authError?.message || 'No hay un usuario autenticado.')
+  }
+
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('organization_id')
+    .eq('id', authData.user.id)
+    .single<ProfileOrgRow>()
+
+  if (profileError || !profileData?.organization_id) {
+    throw new Error(profileError?.message || 'No hay organización asociada al usuario.')
+  }
+
+  return {
+    userId: authData.user.id,
+    organizationId: profileData.organization_id,
+  }
 }
 
 const resolveCropSeason = (value: RequisitionDb['ranch_crop_seasons']) => {
@@ -236,9 +270,11 @@ const mapRequisition = (row: RequisitionDb): Requisicion => {
 export function useRequisicionesStore() {
   const [requisiciones, setRequisiciones] = useState<Requisicion[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const loadRequisiciones = useCallback(async () => {
     setIsLoading(true)
+    setLoadError(null)
     const { data, error } = await supabase
       .from('requisitions')
       .select(
@@ -283,6 +319,7 @@ export function useRequisicionesStore() {
 
     if (error) {
       console.error('Error obteniendo requisiciones:', error)
+      setLoadError(error.message)
       setRequisiciones([])
       setIsLoading(false)
       return
@@ -304,19 +341,7 @@ export function useRequisicionesStore() {
   }, [requisiciones])
 
   const addRequisicion = useCallback(async (data: NuevaRequisicion) => {
-    const [{ data: userData, error: userError }, { data: profileData, error: profileError }] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase.from('profiles').select('organization_id').single<{ organization_id: string | null }>(),
-    ])
-
-    if (userError || profileError) {
-      throw new Error(userError?.message || profileError?.message || 'No fue posible preparar la requisición.')
-    }
-
-    const organizationId = profileData?.organization_id
-    if (!organizationId) {
-      throw new Error('No hay organización asociada al usuario.')
-    }
+    const { organizationId, userId } = await getCurrentUserAndOrganization()
 
     const payload = {
       organization_id: organizationId,
@@ -331,7 +356,7 @@ export function useRequisicionesStore() {
       sector_id: data.operationContext?.sector?.id ?? null,
       tunnel_id: data.operationContext?.tunnel?.id ?? null,
       valve_id: data.operationContext?.valve?.id ?? null,
-      requested_by: userData.user?.id ?? null,
+      requested_by: userId,
     }
 
     const { data: created, error: createError } = await supabase
@@ -375,6 +400,18 @@ export function useRequisicionesStore() {
       })
     }
 
+    itemsPayload.forEach((item) => {
+      const originalProductId = item.product_id
+      item.product_id = sanitizeProductId(item.product_id)
+
+      if (originalProductId && !item.product_id) {
+        item.metadata = {
+          ...item.metadata,
+          source_product_id: originalProductId,
+        }
+      }
+    })
+
     const { error: itemsError } = await supabase.from('requisition_items').insert(itemsPayload)
     if (itemsError) {
       throw new Error(itemsError.message)
@@ -387,6 +424,7 @@ export function useRequisicionesStore() {
     requisiciones,
     stats,
     isLoading,
+    loadError,
     addRequisicion,
     refreshRequisiciones: loadRequisiciones,
   }
