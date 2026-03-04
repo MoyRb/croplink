@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 
 import { Card } from '../../../components/ui/Card'
-import { getCatalog } from '../../../lib/operationCatalog/repo'
+import { useStructureCatalog } from './useStructureCatalog'
 
 const modules = [
   { key: 'operaciones', label: 'Operaciones', to: '/configuracion/estructura/operaciones' },
@@ -14,7 +14,7 @@ const modules = [
 ]
 
 export function EstructuraDashboardPage() {
-  const catalog = getCatalog()
+  const { catalog, isLoading, loadError } = useStructureCatalog()
   const counters: Record<string, number> = {
     operaciones: catalog.operations.length,
     ranchos: catalog.ranches.length,
@@ -28,6 +28,8 @@ export function EstructuraDashboardPage() {
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Configuración · Estructura</h1>
+      {isLoading ? <p className="text-sm text-gray-500">Cargando estructura...</p> : null}
+      {loadError ? <p className="text-sm text-red-600">{loadError}</p> : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {modules.map((module) => (
           <Link key={module.key} to={module.to}>

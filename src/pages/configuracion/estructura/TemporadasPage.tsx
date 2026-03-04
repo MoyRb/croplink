@@ -1,29 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Button } from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
-import { OPERATION_CATALOG_UPDATED_EVENT, deleteSeason, getCatalog, upsertSeason } from '../../../lib/operationCatalog/repo'
+import { deleteSeasonSupabase, upsertSeasonSupabase } from '../../../lib/operationCatalog/supabaseRepo'
 import { CrudShell, DeleteModal, ModalActions, stopSubmit, useCrudFeedback } from './shared'
+import { useStructureCatalog } from './useStructureCatalog'
 
 export function TemporadasPage() {
-  const [catalog, setCatalog] = useState(() => getCatalog())
+  const { catalog, isLoading, loadError, organizationId, reload } = useStructureCatalog()
   const [query, setQuery] = useState('')
   const [form, setForm] = useState({ id: '', name: '', description: '', startDate: '', endDate: '' })
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState('')
   const feedback = useCrudFeedback()
 
-  useEffect(() => {
-    const reload = () => setCatalog(getCatalog())
-    window.addEventListener(OPERATION_CATALOG_UPDATED_EVENT, reload)
-    return () => window.removeEventListener(OPERATION_CATALOG_UPDATED_EVENT, reload)
-  }, [])
-
   const rows = useMemo(() => catalog.seasons.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())), [catalog.seasons, query])
 
   return (
-    <CrudShell title="Temporadas" searchPlaceholder="Buscar temporada" query={query} setQuery={setQuery} onNew={() => { setForm({ id: '', name: '', description: '', startDate: '', endDate: '' }); setModalOpen(true) }} rows={rows} toastMessage={feedback.toastMessage} errorMessage={feedback.errorMessage}
+    <CrudShell title="Temporadas" searchPlaceholder="Buscar temporada" query={query} setQuery={setQuery} onNew={() => { setForm({ id: '', name: '', description: '', startDate: '', endDate: '' }); setModalOpen(true) }} rows={rows} toastMessage={feedback.toastMessage} errorMessage={feedback.errorMessage || loadError} isLoading={isLoading} emptyMessage="No hay temporadas registradas."
       renderRow={(item) => (
         <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-3">
           <div>
@@ -35,7 +30,7 @@ export function TemporadasPage() {
       )}
     >
       <Modal open={modalOpen} title={form.id ? 'Editar temporada' : 'Nueva temporada'} onClose={() => setModalOpen(false)}>
-        <form onSubmit={stopSubmit(() => feedback.run(() => { upsertSeason(form); setModalOpen(false) }, 'Temporada guardada.'))} className="space-y-2">
+        <form onSubmit={stopSubmit(() => feedback.run(async () => { if (!organizationId) throw new Error('Perfil sin organización asignada.'); await upsertSeasonSupabase(organizationId, form); await reload(); setModalOpen(false) }, 'Temporada guardada.'))} className="space-y-2">
           <Input placeholder="Nombre" value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} />
           <Input placeholder="Descripción" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} />
           <Input type="date" value={form.startDate} onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))} />
@@ -43,7 +38,7 @@ export function TemporadasPage() {
           <ModalActions onClose={() => setModalOpen(false)} />
         </form>
       </Modal>
-      <DeleteModal open={Boolean(deleteId)} onClose={() => setDeleteId('')} onConfirm={() => feedback.run(() => { deleteSeason(deleteId); setDeleteId('') }, 'Temporada eliminada.')} />
+      <DeleteModal open={Boolean(deleteId)} onClose={() => setDeleteId('')} onConfirm={() => feedback.run(async () => { await deleteSeasonSupabase(deleteId); await reload(); setDeleteId('') }, 'Temporada eliminada.')} />
     </CrudShell>
   )
 }

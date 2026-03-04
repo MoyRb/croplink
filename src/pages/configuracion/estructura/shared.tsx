@@ -10,18 +10,22 @@ import { Toast } from '../../../components/ui/Toast'
 export function useCrudFeedback() {
   const [toastMessage, setToastMessage] = useState('')
   const [errorMessage, setErrorMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const run = (action: () => void, successMessage: string) => {
+  const run = async (action: () => void | Promise<void>, successMessage: string) => {
     try {
-      action()
+      setIsSubmitting(true)
+      await action()
       setToastMessage(successMessage)
       setErrorMessage('')
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'Error inesperado.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  return { toastMessage, errorMessage, setToastMessage, setErrorMessage, run }
+  return { toastMessage, errorMessage, setToastMessage, setErrorMessage, isSubmitting, run }
 }
 
 type CrudShellProps<T> = {
@@ -35,9 +39,11 @@ type CrudShellProps<T> = {
   children: ReactNode
   toastMessage?: string
   errorMessage?: string
+  isLoading?: boolean
+  emptyMessage?: string
 }
 
-export function CrudShell<T>({ title, searchPlaceholder, query, setQuery, onNew, rows, renderRow, children, toastMessage, errorMessage }: CrudShellProps<T>) {
+export function CrudShell<T>({ title, searchPlaceholder, query, setQuery, onNew, rows, renderRow, children, toastMessage, errorMessage, isLoading = false, emptyMessage = 'Sin registros.' }: CrudShellProps<T>) {
   const content = useMemo(() => rows.map(renderRow), [rows, renderRow])
   return (
     <div className="space-y-4">
@@ -49,7 +55,10 @@ export function CrudShell<T>({ title, searchPlaceholder, query, setQuery, onNew,
           <Input className="max-w-sm" placeholder={searchPlaceholder} value={query} onChange={(event) => setQuery(event.target.value)} />
           <Button onClick={onNew}>Nuevo</Button>
         </div>
-        <div className="space-y-2">{content}</div>
+        <div className="space-y-2">
+          {isLoading ? <p className="text-sm text-gray-500">Cargando...</p> : null}
+          {!isLoading && rows.length === 0 ? <p className="text-sm text-gray-500">{emptyMessage}</p> : content}
+        </div>
       </Card>
       {children}
     </div>

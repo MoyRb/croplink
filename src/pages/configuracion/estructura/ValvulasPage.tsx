@@ -1,30 +1,25 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { Button } from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
-import { OPERATION_CATALOG_UPDATED_EVENT, deleteValve, getCatalog, upsertValve } from '../../../lib/operationCatalog/repo'
+import { deleteValveSupabase, upsertValveSupabase } from '../../../lib/operationCatalog/supabaseRepo'
 import { CrudShell, DeleteModal, ModalActions, stopSubmit, useCrudFeedback } from './shared'
+import { useStructureCatalog } from './useStructureCatalog'
 
 export function ValvulasPage() {
-  const [catalog, setCatalog] = useState(() => getCatalog())
+  const { catalog, isLoading, loadError, organizationId, reload } = useStructureCatalog()
   const [query, setQuery] = useState('')
   const [form, setForm] = useState({ id: '', sectorId: '', tunnelId: '', name: '', description: '', code: '' })
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState('')
   const feedback = useCrudFeedback()
 
-  useEffect(() => {
-    const reload = () => setCatalog(getCatalog())
-    window.addEventListener(OPERATION_CATALOG_UPDATED_EVENT, reload)
-    return () => window.removeEventListener(OPERATION_CATALOG_UPDATED_EVENT, reload)
-  }, [])
-
   const rows = useMemo(() => catalog.valves.filter((item) => item.name.toLowerCase().includes(query.toLowerCase())), [catalog.valves, query])
   const availableTunnels = catalog.tunnels.filter((item) => item.sectorId === form.sectorId)
 
   return (
-    <CrudShell title="Válvulas" searchPlaceholder="Buscar válvula" query={query} setQuery={setQuery} onNew={() => { setForm({ id: '', sectorId: '', tunnelId: '', name: '', description: '', code: '' }); setModalOpen(true) }} rows={rows} toastMessage={feedback.toastMessage} errorMessage={feedback.errorMessage}
+    <CrudShell title="Válvulas" searchPlaceholder="Buscar válvula" query={query} setQuery={setQuery} onNew={() => { setForm({ id: '', sectorId: '', tunnelId: '', name: '', description: '', code: '' }); setModalOpen(true) }} rows={rows} toastMessage={feedback.toastMessage} errorMessage={feedback.errorMessage || loadError} isLoading={isLoading} emptyMessage="No hay válvulas registradas."
       renderRow={(item) => (
         <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-3">
           <div>
@@ -36,7 +31,7 @@ export function ValvulasPage() {
       )}
     >
       <Modal open={modalOpen} title={form.id ? 'Editar válvula' : 'Nueva válvula'} onClose={() => setModalOpen(false)}>
-        <form onSubmit={stopSubmit(() => feedback.run(() => { upsertValve({ ...form, tunnelId: form.tunnelId || undefined }); setModalOpen(false) }, 'Válvula guardada.'))} className="space-y-2">
+        <form onSubmit={stopSubmit(() => feedback.run(async () => { if (!organizationId) throw new Error('Perfil sin organización asignada.'); await upsertValveSupabase(organizationId, { ...form, tunnelId: form.tunnelId || undefined }); await reload(); setModalOpen(false) }, 'Válvula guardada.'))} className="space-y-2">
           <select className="w-full rounded-full border border-[#E5E7EB] px-3 py-2" value={form.sectorId} onChange={(event) => setForm((prev) => ({ ...prev, sectorId: event.target.value, tunnelId: '' }))}><option value="">Sector</option>{catalog.sectors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           <select className="w-full rounded-full border border-[#E5E7EB] px-3 py-2" value={form.tunnelId} onChange={(event) => setForm((prev) => ({ ...prev, tunnelId: event.target.value }))}><option value="">Sin túnel</option>{availableTunnels.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           <Input placeholder="Nombre" value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} />
@@ -45,7 +40,7 @@ export function ValvulasPage() {
           <ModalActions onClose={() => setModalOpen(false)} />
         </form>
       </Modal>
-      <DeleteModal open={Boolean(deleteId)} onClose={() => setDeleteId('')} onConfirm={() => feedback.run(() => { deleteValve(deleteId); setDeleteId('') }, 'Válvula eliminada.')} />
+      <DeleteModal open={Boolean(deleteId)} onClose={() => setDeleteId('')} onConfirm={() => feedback.run(async () => { await deleteValveSupabase(deleteId); await reload(); setDeleteId('') }, 'Válvula eliminada.')} />
     </CrudShell>
   )
 }
