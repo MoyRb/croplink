@@ -4,7 +4,9 @@ import { AppShell } from './AppShell'
 import { RequireAuth } from './auth/RequireAuth'
 import { RequireRole } from './auth/RequireRole'
 import { DashboardPage } from '../pages/dashboard/DashboardPage'
-import { LoginPage } from '../pages/login/LoginPage'
+import { LoginPage } from '../pages/auth/LoginPage'
+import { SignupPage } from '../pages/auth/SignupPage'
+import { OnboardingOrgPage } from '../pages/auth/OnboardingOrgPage'
 import { MarketplaceCompararPage } from '../pages/marketplace/MarketplaceCompararPage'
 import { InventarioInsumosPage } from '../pages/inventario/InventarioInsumosPage'
 import { InventarioMovimientosPage } from '../pages/inventario/InventarioMovimientosPage'
@@ -49,6 +51,8 @@ export function AppRouter() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+      <Route path="/onboarding" element={<OnboardingOrgPage />} />
       <Route
         element={
           <RequireAuth>

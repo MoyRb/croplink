@@ -1,9 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Menu } from 'lucide-react'
 
+import { Button } from '../ui/Button'
 import { Input } from '../ui/Input'
 import { Toast } from '../ui/Toast'
 import { useOperationContext } from '../../lib/store/operationContext'
+import { signOut } from '../../lib/auth/helpers'
 import { cn } from '../../lib/utils'
 
 const selectStyles =
@@ -31,6 +33,15 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
     setTunnel,
     setValve,
   } = useOperationContext()
+  const [signOutError, setSignOutError] = useState<string | null>(null)
+
+  const handleSignOut = async () => {
+    setSignOutError(null)
+    const { error } = await signOut()
+    if (error) {
+      setSignOutError(error.message)
+    }
+  }
   useEffect(() => {
     if (!contextNotice) return
     const timer = window.setTimeout(() => {
@@ -66,11 +77,15 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
                 <option>Supervisor</option>
               </select>
             </div>
+            <Button type="button" variant="secondary" className="px-3 py-1.5 text-xs" onClick={handleSignOut}>
+              Cerrar sesión
+            </Button>
           </div>
         </div>
       </div>
 
       {contextNotice ? <Toast>{contextNotice}</Toast> : null}
+      {signOutError ? <Toast>{signOutError}</Toast> : null}
 
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#E5E7EB] bg-[#FAFAFA] p-3">
         <p className="mr-1 text-xs font-semibold uppercase tracking-wide text-gray-500">Contexto de operación</p>
