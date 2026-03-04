@@ -17,7 +17,7 @@ import {
   type IrrigationRow,
 } from '../../lib/store/applicationExecutions'
 import { useRequisicionesStore } from '../../lib/store/requisiciones'
-import { getCatalog } from '../../lib/operationCatalog/repo'
+import { useStructureCatalog } from '../configuracion/estructura/useStructureCatalog'
 import {
   ensureInventoryItem,
   registerInventoryMovement,
@@ -59,8 +59,7 @@ export function RequisicionEjecucionPage() {
   const { id: requisicionId = '', execId } = useParams()
   const { requisiciones } = useRequisicionesStore()
   const requisicion = requisiciones.find((item) => item.id === requisicionId)
-
-  const catalog = useMemo(() => getCatalog(), [])
+  const { catalog } = useStructureCatalog()
 
   const initialBundle = useMemo(() => {
     if (!requisicion) return null
