@@ -12,6 +12,8 @@ export function OnboardingOrgPage() {
   const navigate = useNavigate()
   const { user, loading, myProfile, myProfileLoaded, refreshMyProfile } = useAuth()
   const [orgName, setOrgName] = useState('')
+  const [fullName, setFullName] = useState(myProfile?.full_name ?? '')
+  const [initialRole, setInitialRole] = useState('admin')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -25,16 +27,30 @@ export function OnboardingOrgPage() {
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+    if (!user?.id) {
+      setErrorMessage('Sesión inválida. Inicia sesión de nuevo.')
+      return
+    }
+
     setSubmitting(true)
     setErrorMessage(null)
 
-    const { error } = await supabase.rpc('bootstrap_org', {
+    const normalizedRole = initialRole.trim().toLowerCase() || 'admin'
+    if (!['admin', 'compras', 'campo', 'supervisor'].includes(normalizedRole)) {
+      setErrorMessage('Rol inválido. Usa admin, compras, campo o supervisor.')
+      setSubmitting(false)
+      return
+    }
+
+    const { error: bootstrapError } = await supabase.rpc('bootstrap_org', {
       org_name: orgName,
       org_slug: null,
+      profile_full_name: fullName.trim(),
+      initial_role: normalizedRole,
     })
 
-    if (error) {
-      setErrorMessage(error.message)
+    if (bootstrapError) {
+      setErrorMessage(bootstrapError.message)
       setSubmitting(false)
       return
     }
@@ -61,6 +77,28 @@ export function OnboardingOrgPage() {
               onChange={(event) => setOrgName(event.target.value)}
               required
             />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700">Tu nombre completo</label>
+            <Input
+              className="mt-2"
+              placeholder="Ej. María López"
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-gray-700">Rol inicial (opcional)</label>
+            <Input
+              className="mt-2"
+              placeholder="admin"
+              value={initialRole}
+              onChange={(event) => setInitialRole(event.target.value)}
+            />
+            <p className="mt-1 text-xs text-gray-500">Valores permitidos: admin, compras, campo, supervisor.</p>
           </div>
 
           {errorMessage ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
