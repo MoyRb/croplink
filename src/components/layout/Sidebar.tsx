@@ -4,7 +4,8 @@ import { useLocation } from 'react-router-dom'
 
 import { SidebarSection } from './SidebarSection'
 import { SIDEBAR_NAV, type SidebarNavItem, type SidebarNavSection } from './sidebarNav'
-import { getCurrentRole } from '../../lib/auth/roles'
+import { getUserRoleFromProfileRole } from '../../lib/auth/roles'
+import { useAuth } from '../../lib/auth/useAuth'
 import { BRAND } from '../../lib/brand'
 import { cn } from '../../lib/utils'
 
@@ -48,10 +49,11 @@ function isSectionPathActive(pathname: string, section: SidebarNavSection) {
 
 export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const location = useLocation()
-  const role = getCurrentRole()
+  const { myProfile } = useAuth()
+  const role = getUserRoleFromProfileRole(myProfile?.role)
 
   const visibleSections = useMemo(
-    () => SIDEBAR_NAV.filter((section) => !section.roles || section.roles.includes(role)),
+    () => SIDEBAR_NAV.filter((section) => !section.roles || (role != null && section.roles.includes(role))),
     [role],
   )
 
