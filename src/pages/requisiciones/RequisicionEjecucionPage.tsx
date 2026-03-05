@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '../../components/ui/Button'
@@ -61,65 +61,100 @@ export function RequisicionEjecucionPage() {
   const requisicion = requisiciones.find((item) => item.id === requisicionId)
   const { catalog } = useStructureCatalog()
 
-  const initialBundle = useMemo(() => {
-    if (!requisicion) return null
+  const [execution, setExecution] = useState<ApplicationExecution>({
+    id: '',
+    requisicionId: '',
+    mode: 'FOLIAR_DRENCH',
+    status: 'DRAFT',
+    context: {
+      operacion: '',
+      rancho: '',
+      cultivo: '',
+      temporada: '',
+      sector: '',
+      tunel: '',
+      valvula: '',
+    },
+    headerFields: {
+      superficieTotal: 0,
+      solicita: '',
+      justificacion: '',
+      comentarios: '',
+      fechaRecomendacion: '',
+      semana: '',
+      operario: '',
+      fechaAplicacion: '',
+      horaInicio: '',
+      horaTermino: '',
+      modoAplicacion: 'Manual',
+      equipoAplicacion: '',
+      phMezcla: '',
+      volumenTanqueLts: 200,
+      volumenTanqueLibre: '',
+    },
+    createdAt: new Date().toISOString(),
+  })
+  const [lines, setLines] = useState<ApplicationLine[]>([])
+  const [irrigationRows, setIrrigationRows] = useState<IrrigationRow[]>([])
+  const [isExecutionLoading, setIsExecutionLoading] = useState(true)
+  const [executionError, setExecutionError] = useState<string | null>(null)
 
-    if (execId) {
-      return getExecutionBundle(execId)
-    }
+  useEffect(() => {
+    let isMounted = true
 
-    const latest = getLatestExecutionByRequisicionId(requisicion.id)
-    return latest ? getExecutionBundle(latest.id) : null
-  }, [execId, requisicion])
+    const loadExecutionBundle = async () => {
+      if (!requisicion) {
+        if (isMounted) {
+          setExecution((prev) => ({ ...prev, id: '', requisicionId: '' }))
+          setLines([])
+          setIrrigationRows([])
+          setIsExecutionLoading(false)
+          setExecutionError(null)
+        }
+        return
+      }
 
-  const [execution, setExecution] = useState<ApplicationExecution>(() => {
-    if (!requisicion) {
-      return {
-        id: '',
-        requisicionId: '',
-        mode: 'FOLIAR_DRENCH',
-        status: 'DRAFT',
-        context: {
-          operacion: '',
-          rancho: '',
-          cultivo: '',
-          temporada: '',
-          sector: '',
-          tunel: '',
-          valvula: '',
-        },
-        headerFields: {
-          superficieTotal: 0,
-          solicita: '',
-          justificacion: '',
-          comentarios: '',
-          fechaRecomendacion: '',
-          semana: '',
-          operario: '',
-          fechaAplicacion: '',
-          horaInicio: '',
-          horaTermino: '',
-          modoAplicacion: '',
-          equipoAplicacion: '',
-          phMezcla: '',
-          volumenTanqueLts: 200,
-          volumenTanqueLibre: '',
-        },
-        createdAt: new Date().toISOString(),
+      setIsExecutionLoading(true)
+      setExecutionError(null)
+
+      try {
+        const bundle = execId
+          ? await getExecutionBundle(execId)
+          : await (async () => {
+              const latest = await getLatestExecutionByRequisicionId(requisicion.id)
+              return latest ? getExecutionBundle(latest.id) : null
+            })()
+
+        const nextExecution = bundle?.execution ?? buildInitialExecution(requisicion)
+        const nextLines = bundle?.lines ?? buildInitialLines(nextExecution.id, requisicion)
+        const nextRows = bundle?.irrigationRows ?? [createIrrigationRow(nextExecution.id)]
+
+        if (isMounted) {
+          setExecution(nextExecution)
+          setLines(nextLines)
+          setIrrigationRows(nextRows)
+        }
+      } catch (error) {
+        if (isMounted) {
+          setExecutionError(error instanceof Error ? error.message : 'No se pudo cargar la ejecución.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsExecutionLoading(false)
+        }
       }
     }
-    return initialBundle?.execution ?? buildInitialExecution(requisicion)
-  })
 
-  const [lines, setLines] = useState<ApplicationLine[]>(() => {
-    if (!requisicion) return []
-    return initialBundle?.lines ?? buildInitialLines(initialBundle?.execution.id ?? execution.id, requisicion)
-  })
+    void loadExecutionBundle()
 
-  const [irrigationRows, setIrrigationRows] = useState<IrrigationRow[]>(() => initialBundle?.irrigationRows ?? [createIrrigationRow(execution.id)])
+    return () => {
+      isMounted = false
+    }
+  }, [execId, requisicion])
 
   const [sectorSurfaces, setSectorSurfaces] = useState<SectorSurface[]>(() => [])
   const [saveMessage, setSaveMessage] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   const ranch = useMemo(() => catalog.ranches.find((item) => item.name === execution.context.rancho), [catalog.ranches, execution.context.rancho])
 
@@ -273,6 +308,9 @@ export function RequisicionEjecucionPage() {
   }
 
   const persistExecution = async (status: ApplicationExecutionStatus) => {
+    setIsSaving(true)
+    setSaveMessage('')
+    try {
     const surfaceTotal = execution.mode === 'FOLIAR_DRENCH' ? foliarSuperficieTotal : irrigationRows.reduce((acc, row) => acc + row.superficie, 0)
 
     const currentInventoryLines = execution.inventory?.lines ?? inventoryLines
@@ -368,8 +406,14 @@ export function RequisicionEjecucionPage() {
       nextInventory.closedPostedAt = now
     }
 
-    setExecution(nextExecution)
-    saveExecutionBundle(nextExecution, lines, irrigationRows)
+    const persistedExecutionId = await saveExecutionBundle(nextExecution, lines, irrigationRows)
+    if (persistedExecutionId !== nextExecution.id) {
+      setExecution((prev) => ({ ...prev, id: persistedExecutionId }))
+      setLines((prev) => prev.map((line) => ({ ...line, executionId: persistedExecutionId })))
+      setIrrigationRows((prev) => prev.map((row) => ({ ...row, executionId: persistedExecutionId })))
+    } else {
+      setExecution(nextExecution)
+    }
     setSaveMessage(
       status === 'DRAFT'
         ? 'Borrador guardado.'
@@ -377,6 +421,11 @@ export function RequisicionEjecucionPage() {
           ? 'Ejecución marcada en progreso y salida de inventario registrada.'
           : 'Ejecución terminada e inventario conciliado.',
     )
+    } catch (error) {
+      setSaveMessage(error instanceof Error ? error.message : 'No se pudo guardar la ejecución.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -395,6 +444,8 @@ export function RequisicionEjecucionPage() {
       </div>
 
       {saveMessage ? <p className="text-sm font-medium text-emerald-700">{saveMessage}</p> : null}
+      {isExecutionLoading ? <p className="text-sm text-gray-600">Cargando ejecución...</p> : null}
+      {executionError ? <p className="text-sm text-red-600">{executionError}</p> : null}
 
       <Card>
         <div className="grid gap-4 md:grid-cols-3">
@@ -769,13 +820,15 @@ export function RequisicionEjecucionPage() {
       </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button variant="secondary" onClick={() => persistExecution('DRAFT')}>
-          Guardar borrador
+        <Button variant="secondary" onClick={() => persistExecution('DRAFT')} disabled={isSaving}>
+          {isSaving ? 'Guardando...' : 'Guardar borrador'}
         </Button>
-        <Button variant="secondary" onClick={() => persistExecution('IN_PROGRESS')}>
-          Marcar en ejecución
+        <Button variant="secondary" onClick={() => persistExecution('IN_PROGRESS')} disabled={isSaving}>
+          {isSaving ? 'Guardando...' : 'Marcar en ejecución'}
         </Button>
-        <Button onClick={() => persistExecution('COMPLETED')}>Terminar ejecución</Button>
+        <Button onClick={() => persistExecution('COMPLETED')} disabled={isSaving}>
+          {isSaving ? 'Guardando...' : 'Terminar ejecución'}
+        </Button>
       </div>
     </div>
   )
