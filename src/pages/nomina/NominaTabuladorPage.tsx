@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import { Toast } from '../../components/ui/Toast'
-import { getCatalog } from '../../lib/operationCatalog/repo'
+import { useOperationCatalog } from '../../lib/operationCatalog/useOperationCatalog'
 import {
   addTarifaActividad,
   deleteTarifaActividad,
@@ -35,7 +35,7 @@ const initialForm = {
 }
 
 export function NominaTabuladorPage() {
-  const [catalog] = useState(() => getCatalog())
+  const { catalog } = useOperationCatalog()
   const [tarifas, setTarifas] = useState(() => getTarifasActividad())
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<TarifaActividad | null>(null)
