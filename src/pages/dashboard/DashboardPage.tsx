@@ -20,10 +20,14 @@ export function DashboardPage() {
   const [requisitions, setRequisitions] = useState<DashboardRequisition[]>([])
 
   useEffect(() => {
-    if (location.state?.toast === 'unauthorized') {
+    if (location.state?.toast !== 'unauthorized') return
+
+    const timer = window.setTimeout(() => {
       setToastVisible(true)
       navigate(location.pathname, { replace: true })
-    }
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [location.pathname, location.state, navigate])
 
   useEffect(() => {

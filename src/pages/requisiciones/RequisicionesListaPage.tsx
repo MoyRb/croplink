@@ -54,10 +54,14 @@ export function RequisicionesListaPage() {
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'created')
 
   useEffect(() => {
-    if (location.state?.toast === 'created') {
+    if (location.state?.toast !== 'created') return
+
+    const timer = window.setTimeout(() => {
       setToastVisible(true)
       navigate(location.pathname, { replace: true })
-    }
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [location.pathname, location.state, navigate])
 
   useEffect(() => {
