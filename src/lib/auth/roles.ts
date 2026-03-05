@@ -21,8 +21,19 @@ export const ACTIVOS_ALLOWED_ROLES: UserRole[] = [
 export const isUserRole = (value: string | null | undefined): value is UserRole =>
   value != null && USER_ROLE_VALUES.includes(value as UserRole)
 
-export const getUserRoleFromProfileRole = (role: string | null | undefined): UserRole | null =>
-  isUserRole(role) ? role : null
+const PROFILE_ROLE_TO_USER_ROLE: Record<string, UserRole> = {
+  admin: 'AGROQUIMICA_ADMIN',
+  compras: 'AGROQUIMICA_VENTAS',
+  campo: 'AGRICOLA_PRODUCTOR',
+  supervisor: 'AGRICOLA_INGENIERO',
+}
+
+export const getUserRoleFromProfileRole = (role: string | null | undefined): UserRole | null => {
+  if (!role) return null
+  if (isUserRole(role)) return role
+
+  return PROFILE_ROLE_TO_USER_ROLE[role.toLowerCase()] ?? null
+}
 
 export const isRoleAllowed = (allowed: UserRole[], role: UserRole | null | undefined) =>
   role != null && allowed.includes(role)
