@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { Badge } from '../../components/ui/Badge'
@@ -13,21 +13,53 @@ const statusLabels: Record<MonitoringSession['status'], string> = {
 }
 
 export function MonitoreosListaPage() {
-  const [sessions] = useState<MonitoringSession[]>(() => getSessions())
+  const [sessions, setSessions] = useState<MonitoringSession[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const data = await getSessions()
+        if (!cancelled) setSessions(data)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'No se pudieron cargar los monitoreos.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Monitoreos</h1>
-          <p className="text-sm text-gray-500">Sesiones guardadas en localStorage.</p>
+          <p className="text-sm text-gray-500">Sesiones guardadas en Supabase.</p>
         </div>
         <Link to="/monitoreos/crear">
           <Button>Nuevo monitoreo</Button>
         </Link>
       </div>
 
-      {sessions.length === 0 ? (
+      {loading ? (
+        <Card>
+          <p className="text-sm text-gray-500">Cargando sesiones...</p>
+        </Card>
+      ) : error ? (
+        <Card>
+          <p className="text-sm text-red-600">{error}</p>
+        </Card>
+      ) : sessions.length === 0 ? (
         <Card>
           <p className="text-sm text-gray-500">No hay sesiones aún.</p>
         </Card>

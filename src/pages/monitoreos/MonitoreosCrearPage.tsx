@@ -5,47 +5,23 @@ import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
-import { ETAPAS_FENOLOGICAS, METEO_OPTIONS, type SessionConfig } from '../../lib/monitoreo'
+import { ETAPAS_FENOLOGICAS, METEO_OPTIONS, createSession, type SessionConfig } from '../../lib/monitoreo'
 import { useOperationContext } from '../../lib/store/operationContext'
 
 type ThresholdRule = {
   id: string
   metric: string
-  min?: number | null
-  max?: number | null
+  min?: number
+  max?: number
   unit?: string | null
 }
-
-type MonitoringSessionPayload = {
-  rancho: string
-  cultivo: string
-  sector: string
-  tunel?: string
-  valvula?: string
-  superficie?: number
-  condiciones: {
-    humedad?: number
-    temperatura?: number
-    clima?: SessionConfig['condicionMeteorologica']
-  }
-  etapa: SessionConfig['etapaFenologica']
-  muestreo: {
-    puntosPorSector: number
-    plantasPorPunto: number
-    metrosMuestreados: number
-  }
-  tipo: 'desarrollo' | 'nutricion'
-  umbrales: ThresholdRule[]
-  startedAt: string
-}
-
 
 const getUuid = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`)
 
 const parseNullableNumber = (value: string) => {
-  if (!value.trim()) return null
+  if (!value.trim()) return undefined
   const parsed = Number(value)
-  return Number.isNaN(parsed) ? null : parsed
+  return Number.isNaN(parsed) ? undefined : parsed
 }
 
 export function MonitoreosCrearPage() {
@@ -74,6 +50,7 @@ export function MonitoreosCrearPage() {
   const [max, setMax] = useState('')
   const [unit, setUnit] = useState('')
   const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const availableRanches = useMemo(
     () => ranches.map((item) => item.name),
@@ -130,11 +107,11 @@ export function MonitoreosCrearPage() {
     setThresholdRules((prev) => prev.filter((rule) => rule.id !== id))
   }
 
-  const upsertThresholdRule = (ruleMetric: string, values: { min?: number | null; max?: number | null }) => {
+  const upsertThresholdRule = (ruleMetric: string, values: { min?: number; max?: number }) => {
     setThresholdRules((prev) => {
       const existingIndex = prev.findIndex((rule) => rule.metric === ruleMetric)
       const hasValues =
-        (values.min !== null && values.min !== undefined) || (values.max !== null && values.max !== undefined)
+        values.min !== undefined || values.max !== undefined
 
       if (!hasValues) {
         if (existingIndex < 0) return prev
@@ -168,7 +145,7 @@ export function MonitoreosCrearPage() {
   const rootWhiteThreshold = thresholdRules.find((rule) => rule.metric === 'raiz_blanca_pct')
   const rootLengthThreshold = thresholdRules.find((rule) => rule.metric === 'raiz_longitud_cm')
 
-  const handleIniciarMonitoreo = () => {
+  const handleIniciarMonitoreo = async () => {
     if (!config.rancho.trim() || !config.cultivo.trim() || !config.sector.trim() || !config.etapaFenologica) {
       setFormError('Completa rancho, cultivo, sector y etapa para iniciar el monitoreo.')
       return
@@ -179,34 +156,16 @@ export function MonitoreosCrearPage() {
       return
     }
 
-    const payload: MonitoringSessionPayload = {
-      rancho: config.rancho,
-      cultivo: config.cultivo,
-      sector: config.sector,
-      tunel: config.tunnel,
-      valvula: config.valve,
-      superficie: config.superficie,
-      condiciones: {
-        humedad: config.humedadRelativa,
-        temperatura: config.temperatura,
-        clima: config.condicionMeteorologica,
-      },
-      etapa: config.etapaFenologica,
-      muestreo: {
-        puntosPorSector: config.puntosPorSector,
-        plantasPorPunto: config.plantasPorPunto,
-        metrosMuestreados: config.metrosMuestreados,
-      },
-      tipo: config.tipoMonitoreo === 'DESARROLLO' ? 'desarrollo' : 'nutricion',
-      umbrales: thresholdRules,
-      startedAt: new Date().toISOString(),
+    setSaving(true)
+    try {
+      const created = await createSession({ ...config, umbrales: thresholdRules })
+      setFormError('')
+      navigate(`/monitoreos/sesion/${created.id}`)
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'No se pudo iniciar el monitoreo.')
+    } finally {
+      setSaving(false)
     }
-
-    const sessionId = getUuid()
-    localStorage.setItem(`monitoreo_session_${sessionId}`, JSON.stringify(payload))
-    localStorage.setItem('monitoreo_session_active', sessionId)
-    setFormError('')
-    navigate(`/monitoreos/iniciar/${sessionId}`)
   }
 
   const muestraTotal = config.puntosPorSector * config.plantasPorPunto
@@ -421,7 +380,7 @@ export function MonitoreosCrearPage() {
               value={rootWhiteThreshold?.min ?? ''}
               onChange={(event) => {
                 const parsed = parseNullableNumber(event.target.value)
-                upsertThresholdRule('raiz_blanca_pct', { min: parsed, max: null })
+                upsertThresholdRule('raiz_blanca_pct', { min: parsed, max: undefined })
               }}
             />
           </div>
@@ -437,7 +396,7 @@ export function MonitoreosCrearPage() {
               value={rootLengthThreshold?.min ?? ''}
               onChange={(event) => {
                 const parsed = parseNullableNumber(event.target.value)
-                upsertThresholdRule('raiz_longitud_cm', { min: parsed, max: null })
+                upsertThresholdRule('raiz_longitud_cm', { min: parsed, max: undefined })
               }}
             />
           </div>
@@ -469,8 +428,8 @@ export function MonitoreosCrearPage() {
 
       <div className="space-y-2">
         <div className="flex justify-end">
-          <Button type="button" onClick={handleIniciarMonitoreo}>
-            Iniciar monitoreo
+          <Button type="button" onClick={() => void handleIniciarMonitoreo()} disabled={saving}>
+            {saving ? 'Guardando…' : 'Iniciar monitoreo'}
           </Button>
         </div>
         {formError ? <p className="text-sm text-red-600">{formError}</p> : null}
