@@ -5,7 +5,6 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import {
   getOffers,
-  SELECTED_OFFER_STORAGE_KEY,
   type Offer,
   type SelectedOfferPayload,
 } from '../../lib/marketplace/offers'
@@ -80,8 +79,6 @@ export function MarketplaceCompararPage() {
   const productSlug = slugify(query || 'producto')
 
   const handleSelect = (offer: Offer) => {
-    if (typeof window === 'undefined') return
-
     const payload: SelectedOfferPayload = {
       producto: query,
       cantidad: qty,
@@ -89,8 +86,16 @@ export function MarketplaceCompararPage() {
       offer,
     }
 
-    window.localStorage.setItem(SELECTED_OFFER_STORAGE_KEY, JSON.stringify(payload))
-    navigate('/requisiciones/crear', { state: { toast: 'offer-selected' } })
+    const requisicionSearch = new URLSearchParams({
+      offerId: offer.id,
+      offerQuery: query,
+      offerQty: String(qty),
+      offerUnit: unit,
+    })
+
+    navigate(`/requisiciones/crear?${requisicionSearch.toString()}`, {
+      state: { toast: 'offer-selected', selectedOffer: payload },
+    })
   }
 
   return (
