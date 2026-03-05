@@ -1,17 +1,93 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
+import { Input } from '../../components/ui/Input'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import { downloadRecomendacionExcel } from '../../lib/recomendaciones/excel'
-import { getRecomendacionById } from '../../lib/store/recomendaciones'
+import {
+  getRecomendacionById,
+  updateRecomendacionSeguimiento,
+  type Recomendacion,
+  type RecommendationStatus,
+} from '../../lib/store/recomendaciones'
+
+const statusOptions: { value: RecommendationStatus; label: string }[] = [
+  { value: 'draft', label: 'Borrador' },
+  { value: 'submitted', label: 'Enviada' },
+  { value: 'approved', label: 'Aprobada' },
+  { value: 'rejected', label: 'Rechazada' },
+]
 
 export function RecomendacionesDetallePage() {
   const navigate = useNavigate()
   const { id = '' } = useParams()
-  const recomendacion = useMemo(() => getRecomendacionById(id), [id])
+  const [recomendacion, setRecomendacion] = useState<Recomendacion | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      try {
+        setLoading(true)
+        setError('')
+        const data = await getRecomendacionById(id)
+        if (!cancelled) setRecomendacion(data)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'No se pudo cargar la recomendación.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [id])
+
+  const handleDownload = async () => {
+    if (!recomendacion) return
+
+    try {
+      setError('')
+      await downloadRecomendacionExcel(recomendacion)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo descargar el Excel.')
+    }
+  }
+
+  const handleSaveTracking = async () => {
+    if (!recomendacion) return
+
+    try {
+      setSaving(true)
+      setError('')
+      const updated = await updateRecomendacionSeguimiento(recomendacion.id, {
+        estado: recomendacion.estado,
+        comentarios: recomendacion.comentarios,
+        fechaAplicacion: recomendacion.fechaAplicacion,
+        operario: recomendacion.operario,
+      })
+      setRecomendacion(updated)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo actualizar el seguimiento.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <p className="text-sm text-gray-600">Cargando recomendación...</p>
+      </Card>
+    )
+  }
 
   if (!recomendacion) {
     return (
@@ -22,15 +98,6 @@ export function RecomendacionesDetallePage() {
         </div>
       </Card>
     )
-  }
-
-  const handleDownload = async () => {
-    try {
-      setError('')
-      await downloadRecomendacionExcel(recomendacion)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo descargar el Excel.')
-    }
   }
 
   return (
@@ -57,6 +124,42 @@ export function RecomendacionesDetallePage() {
           <p><span className="text-gray-500">Fecha aplicación:</span> {recomendacion.fechaAplicacion}</p>
           <p><span className="text-gray-500">Hora:</span> {recomendacion.horaInicio} - {recomendacion.horaTermino}</p>
           <p><span className="text-gray-500">pH mezcla:</span> {recomendacion.phMezcla}</p>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-lg font-semibold text-gray-900">Seguimiento</h2>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <select
+            className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+            value={recomendacion.estado}
+            onChange={(event) => setRecomendacion((prev) => (prev ? { ...prev, estado: event.target.value as RecommendationStatus } : prev))}
+          >
+            {statusOptions.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+          <Input
+            placeholder="Operario"
+            value={recomendacion.operario}
+            onChange={(event) => setRecomendacion((prev) => (prev ? { ...prev, operario: event.target.value } : prev))}
+          />
+          <Input
+            placeholder="Fecha aplicación"
+            type="date"
+            value={recomendacion.fechaAplicacion}
+            onChange={(event) => setRecomendacion((prev) => (prev ? { ...prev, fechaAplicacion: event.target.value } : prev))}
+          />
+        </div>
+        <textarea
+          className="mt-3 w-full rounded-2xl border border-[#E5E7EB] px-4 py-2 text-sm"
+          rows={3}
+          placeholder="Comentarios de seguimiento"
+          value={recomendacion.comentarios}
+          onChange={(event) => setRecomendacion((prev) => (prev ? { ...prev, comentarios: event.target.value } : prev))}
+        />
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void handleSaveTracking()} disabled={saving}>{saving ? 'Guardando...' : 'Guardar seguimiento'}</Button>
         </div>
       </Card>
 
