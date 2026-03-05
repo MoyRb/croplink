@@ -5,7 +5,6 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Toast } from '../../components/ui/Toast'
-import { getOffers, type SelectedOfferPayload } from '../../lib/marketplace/offers'
 import {
   buildIndex,
   getRecommendations,
@@ -68,8 +67,6 @@ export function RequisicionesCrearPage() {
   const [notas, setNotas] = useState(prefill?.notas ?? '')
   const [archivo, setArchivo] = useState<File | null>(null)
   const [archivoError, setArchivoError] = useState('')
-  const [selectedOffer, setSelectedOffer] = useState<SelectedOfferPayload | null>(null)
-  const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'offer-selected')
   const [duplicateToastVisible, setDuplicateToastVisible] = useState(false)
   const [missingRanchToastVisible, setMissingRanchToastVisible] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -104,16 +101,6 @@ export function RequisicionesCrearPage() {
   const [beneficoNotas, setBeneficoNotas] = useState('')
 
   const cantidadNumero = Number(cantidad)
-  const isCompareDisabled = !producto.trim() || !cantidadNumero || cantidadNumero <= 0
-  const compareQuery = useMemo(() => {
-    if (isCompareDisabled) return '/marketplace/comparar'
-    const params = new URLSearchParams({
-      query: producto.trim(),
-      qty: String(cantidadNumero),
-      unit: unidad,
-    })
-    return `/marketplace/comparar?${params.toString()}`
-  }, [cantidadNumero, isCompareDisabled, producto, unidad])
 
   const selectStyles =
     'w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm text-gray-800 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6]'
@@ -365,13 +352,7 @@ export function RequisicionesCrearPage() {
       pza: 350,
     }
 
-    const offerMatches =
-      selectedOffer &&
-      selectedOffer.producto === producto &&
-      selectedOffer.cantidad === cantidadNumero &&
-      selectedOffer.unidad === unidad
-
-    const total = offerMatches ? selectedOffer.offer.precioTotal : cantidadNumero * unitRates[unidad]
+    const total = cantidadNumero * unitRates[unidad]
 
     setIsSubmitting(true)
     try {
@@ -410,47 +391,6 @@ export function RequisicionesCrearPage() {
     void loadInventory()
   }, [])
 
-  useEffect(() => {
-    const stateOffer = location.state?.selectedOffer as SelectedOfferPayload | undefined
-    if (stateOffer?.offer) {
-      setSelectedOffer(stateOffer)
-      setProducto(stateOffer.producto || '')
-      setCantidad(stateOffer.cantidad ? String(stateOffer.cantidad) : '')
-      setUnidad(stateOffer.unidad as (typeof unidades)[number])
-      return
-    }
-
-    const params = new URLSearchParams(location.search)
-    const offerId = params.get('offerId')
-    const offerQuery = params.get('offerQuery') ?? ''
-    const offerQty = Number(params.get('offerQty') ?? '0')
-    const offerUnit = params.get('offerUnit') ?? 'kg'
-
-    if (!offerId || !offerQuery.trim() || !offerQty || offerQty <= 0) return
-
-    let active = true
-    getOffers({ query: offerQuery, qty: offerQty, unit: offerUnit }).then((offers) => {
-      if (!active) return
-      const offer = offers.find((candidate) => candidate.id === offerId)
-      if (!offer) return
-
-      const payload: SelectedOfferPayload = {
-        producto: offerQuery,
-        cantidad: offerQty,
-        unidad: offerUnit,
-        offer,
-      }
-
-      setSelectedOffer(payload)
-      setProducto(payload.producto)
-      setCantidad(String(payload.cantidad))
-      setUnidad(payload.unidad as (typeof unidades)[number])
-    })
-
-    return () => {
-      active = false
-    }
-  }, [location.search, location.state])
 
   useEffect(() => {
     const loadPlaguicidas = async () => {
@@ -518,30 +458,6 @@ export function RequisicionesCrearPage() {
   }, [cultivo, searchIndex, targetQuery, tipoProblema])
 
   useEffect(() => {
-    if (
-      selectedOffer &&
-      (selectedOffer.producto !== producto ||
-        selectedOffer.cantidad !== cantidadNumero ||
-        selectedOffer.unidad !== unidad)
-    ) {
-      setSelectedOffer(null)
-    }
-  }, [cantidadNumero, producto, selectedOffer, unidad])
-
-  useEffect(() => {
-    if (location.state?.toast === 'offer-selected') {
-      setToastVisible(true)
-      navigate(location.pathname, { replace: true })
-    }
-  }, [location.pathname, location.state, navigate])
-
-  useEffect(() => {
-    if (!toastVisible) return
-    const timer = window.setTimeout(() => setToastVisible(false), 3000)
-    return () => window.clearTimeout(timer)
-  }, [toastVisible])
-
-  useEffect(() => {
     if (!duplicateToastVisible) return
     const timer = window.setTimeout(() => setDuplicateToastVisible(false), 2000)
     return () => window.clearTimeout(timer)
@@ -589,9 +505,7 @@ export function RequisicionesCrearPage() {
     [itemsBeneficos],
   )
 
-  const estimatedTotal = selectedOffer
-    ? selectedOffer.offer.precioTotal
-    : cantidadNumero * (unidad === 'kg' ? 180 : unidad === 'L' ? 220 : 350)
+  const estimatedTotal = cantidadNumero * (unidad === 'kg' ? 180 : unidad === 'L' ? 220 : 350)
 
   return (
     <div className="space-y-6">
@@ -600,22 +514,8 @@ export function RequisicionesCrearPage() {
           <h1 className="text-2xl font-semibold text-gray-900">Crear requisición</h1>
           <p className="text-sm text-gray-500">Completa los datos esenciales para iniciar el flujo.</p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <Button
-            variant="secondary"
-            disabled={isCompareDisabled}
-            className={isCompareDisabled ? 'cursor-not-allowed opacity-60' : ''}
-            onClick={() => navigate(compareQuery)}
-          >
-            Comparar precios
-          </Button>
-          {isCompareDisabled ? (
-            <p className="text-xs text-gray-500">Ingresa producto y cantidad para comparar.</p>
-          ) : null}
-        </div>
       </div>
 
-      {toastVisible ? <Toast variant="success">Oferta seleccionada</Toast> : null}
       {duplicateToastVisible ? <Toast variant="info">Ya agregado</Toast> : null}
       {missingRanchToastVisible ? <Toast variant="error">Selecciona un rancho antes de crear la requisición.</Toast> : null}
       {submitError ? <Toast variant="error">{submitError}</Toast> : null}
@@ -1151,7 +1051,7 @@ export function RequisicionesCrearPage() {
 
           <div className="space-y-3 rounded-2xl border border-[#E5E7EB] bg-gray-50 px-4 py-3 text-sm">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <span className="text-gray-600">{selectedOffer ? 'Estimado con oferta' : 'Estimado automático'}</span>
+              <span className="text-gray-600">Estimado automático</span>
               <span className="font-semibold text-gray-900">{formatCurrency(estimatedTotal || 0)}</span>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-3">

@@ -7,7 +7,6 @@ import { DashboardPage } from '../pages/dashboard/DashboardPage'
 import { LoginPage } from '../pages/auth/LoginPage'
 import { SignupPage } from '../pages/auth/SignupPage'
 import { OnboardingOrgPage } from '../pages/auth/OnboardingOrgPage'
-import { MarketplaceCompararPage } from '../pages/marketplace/MarketplaceCompararPage'
 import { InventarioInsumosPage } from '../pages/inventario/InventarioInsumosPage'
 import { InventarioMovimientosPage } from '../pages/inventario/InventarioMovimientosPage'
 import { MonitoreosCrearPage } from '../pages/monitoreos/MonitoreosCrearPage'
@@ -65,7 +64,6 @@ export function AppRouter() {
         <Route path="/requisiciones/crear" element={<RequisicionesCrearPage />} />
         <Route path="/requisiciones/:id/ejecutar" element={<RequisicionEjecucionPage />} />
         <Route path="/requisiciones/:id/ejecucion/:execId" element={<RequisicionEjecucionPage />} />
-        <Route path="/marketplace/comparar" element={<MarketplaceCompararPage />} />
         <Route path="/requisiciones/aprobaciones" element={<RequisicionesListaPage />} />
         <Route path="/inventario" element={<Navigate to="/inventario/insumos" replace />} />
         <Route path="/inventario/insumos" element={<InventarioInsumosPage />} />
