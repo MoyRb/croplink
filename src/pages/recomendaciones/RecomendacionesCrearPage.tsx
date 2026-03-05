@@ -24,6 +24,7 @@ const createRiegoFila = () => ({
 })
 
 const baseForm: Omit<Recomendacion, 'id' | 'createdAt'> = {
+  estado: 'draft',
   modo: 'FOLIAR_DRENCH',
   titulo: '',
   huerta: '',
@@ -49,19 +50,28 @@ export function RecomendacionesCrearPage() {
   const navigate = useNavigate()
   const [form, setForm] = useState(baseForm)
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const handleModeChange = (mode: RecommendationMode) => {
     setForm((prev) => ({ ...prev, modo: mode }))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.titulo || !form.huerta || !form.fechaRecomendacion) {
       setError('Completa al menos título, huerta y fecha de recomendación.')
       return
     }
 
-    const saved = createRecomendacion(form)
-    navigate(`/recomendaciones/${saved.id}`)
+    try {
+      setSaving(true)
+      setError('')
+      const saved = await createRecomendacion(form)
+      navigate(`/recomendaciones/${saved.id}`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar la recomendación.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleDownload = async () => {
@@ -193,7 +203,7 @@ export function RecomendacionesCrearPage() {
 
       <div className="flex gap-3 justify-end">
         <Button variant="ghost" onClick={handleDownload}>Descargar Excel</Button>
-        <Button onClick={handleSave}>Guardar recomendación</Button>
+        <Button onClick={() => void handleSave()} disabled={saving}>{saving ? 'Guardando...' : 'Guardar recomendación'}</Button>
       </div>
     </div>
   )
