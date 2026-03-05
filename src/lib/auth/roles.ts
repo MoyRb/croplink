@@ -4,6 +4,13 @@ export type UserRole =
   | 'AGRICOLA_INGENIERO'
   | 'AGROQUIMICA_VENTAS'
 
+const USER_ROLE_VALUES: UserRole[] = [
+  'AGRICOLA_PRODUCTOR',
+  'AGROQUIMICA_ADMIN',
+  'AGRICOLA_INGENIERO',
+  'AGROQUIMICA_VENTAS',
+]
+
 export const NOMINA_ALLOWED_ROLES: UserRole[] = ['AGRICOLA_PRODUCTOR', 'AGROQUIMICA_ADMIN']
 export const ACTIVOS_ALLOWED_ROLES: UserRole[] = [
   'AGRICOLA_PRODUCTOR',
@@ -11,24 +18,11 @@ export const ACTIVOS_ALLOWED_ROLES: UserRole[] = [
   'AGROQUIMICA_VENTAS',
 ]
 
-const ROLE_STORAGE_KEY = 'croplink:role'
+export const isUserRole = (value: string | null | undefined): value is UserRole =>
+  value != null && USER_ROLE_VALUES.includes(value as UserRole)
 
-export const getCurrentRole = (): UserRole => {
-  if (typeof window === 'undefined') {
-    return 'AGRICOLA_PRODUCTOR'
-  }
+export const getUserRoleFromProfileRole = (role: string | null | undefined): UserRole | null =>
+  isUserRole(role) ? role : null
 
-  const stored = window.localStorage.getItem(ROLE_STORAGE_KEY)
-  if (
-    stored === 'AGRICOLA_PRODUCTOR' ||
-    stored === 'AGROQUIMICA_ADMIN' ||
-    stored === 'AGRICOLA_INGENIERO' ||
-    stored === 'AGROQUIMICA_VENTAS'
-  ) {
-    return stored
-  }
-
-  return 'AGRICOLA_PRODUCTOR'
-}
-
-export const isRoleAllowed = (allowed: UserRole[], role: UserRole) => allowed.includes(role)
+export const isRoleAllowed = (allowed: UserRole[], role: UserRole | null | undefined) =>
+  role != null && allowed.includes(role)
