@@ -18,6 +18,7 @@ const optionalValue = (value: string) => (value.trim() ? value.trim() : undefine
 export function ActivosNuevoPage() {
   const navigate = useNavigate()
   const [formError, setFormError] = useState('')
+  const [saving, setSaving] = useState(false)
   const [formData, setFormData] = useState({
     tipo: '' as ActivoTipo | '',
     nombre: '',
@@ -35,7 +36,7 @@ export function ActivosNuevoPage() {
     notas: '',
   })
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const errores: string[] = []
 
     if (!formData.nombre.trim()) {
@@ -61,7 +62,9 @@ export function ActivosNuevoPage() {
       return
     }
 
-    const nuevo = addActivo({
+    setSaving(true)
+    try {
+      const nuevo = await addActivo({
       tipo: formData.tipo as ActivoTipo,
       nombre: formData.nombre.trim(),
       categoria: formData.categoria.trim() || 'Sin categoría',
@@ -78,7 +81,12 @@ export function ActivosNuevoPage() {
       notas: optionalValue(formData.notas),
     })
 
-    navigate(`/activos/${nuevo.id}`, { state: { toast: 'created' } })
+      navigate(`/activos/${nuevo.id}`, { state: { toast: 'created' } })
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : 'No se pudo guardar el activo.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -245,7 +253,7 @@ export function ActivosNuevoPage() {
             />
           </div>
           <div className="flex justify-end">
-            <Button onClick={handleSubmit}>Guardar activo</Button>
+            <Button onClick={() => void handleSubmit()} disabled={saving}>{saving ? 'Guardando...' : 'Guardar activo'}</Button>
           </div>
         </div>
       </Card>

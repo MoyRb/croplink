@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Badge } from '../../components/ui/Badge'
@@ -8,6 +8,7 @@ import { Input } from '../../components/ui/Input'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import {
   listActivos,
+  type Activo,
   type ActivoEstado,
   type ActivoTipo,
   type ActivoUbicacion,
@@ -30,19 +31,34 @@ export function ActivosListaPage() {
   const [estado, setEstado] = useState<ActivoEstado | 'Todos'>('Todos')
   const [ubicacion, setUbicacion] = useState<ActivoUbicacion | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
+  const [activos, setActivos] = useState<Activo[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
-  const activos = useMemo(
-    () =>
-      listActivos({
-        tipo,
-        estado,
-        ubicacion,
-        search,
-      }),
-    [estado, search, tipo, ubicacion],
-  )
+  useEffect(() => {
+    let cancelled = false
 
-  const renderEmpty = activos.length === 0
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const result = await listActivos({ tipo, estado, ubicacion, search })
+        if (!cancelled) setActivos(result)
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'No se pudo cargar activos.')
+          setActivos([])
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [estado, search, tipo, ubicacion])
 
   return (
     <div className="space-y-6">
@@ -70,9 +86,7 @@ export function ActivosListaPage() {
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Tipo
-              </label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Tipo</label>
               <select
                 className={cn(selectClassName, 'mt-2')}
                 value={tipo}
@@ -86,9 +100,7 @@ export function ActivosListaPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Estado
-              </label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Estado</label>
               <select
                 className={cn(selectClassName, 'mt-2')}
                 value={estado}
@@ -102,9 +114,7 @@ export function ActivosListaPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                Ubicación
-              </label>
+              <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">Ubicación</label>
               <select
                 className={cn(selectClassName, 'mt-2')}
                 value={ubicacion}
@@ -120,55 +130,56 @@ export function ActivosListaPage() {
           </div>
         </div>
         <div className="mt-4">
-          <Table>
-            <thead>
-              <tr>
-                <TableHead>Tipo</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Ubicación</TableHead>
-                <TableHead>Responsable</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Placa</TableHead>
-                <TableHead>Acciones</TableHead>
-              </tr>
-            </thead>
-            <tbody>
-              {activos.map((activo) => (
-                <TableRow
-                  key={activo.id}
-                  className="cursor-pointer transition hover:bg-gray-50"
-                  onClick={() => navigate(`/activos/${activo.id}`)}
-                >
-                  <TableCell className="font-medium text-gray-900">{activo.tipo}</TableCell>
-                  <TableCell>
-                    <div className="text-sm font-semibold text-gray-900">{activo.nombre}</div>
-                    <div className="text-xs text-gray-500">{activo.categoria}</div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="text-sm text-gray-700">{activo.ubicacion}</div>
-                    <div className="text-xs text-gray-500">{activo.ubicacionDetalle ?? '—'}</div>
-                  </TableCell>
-                  <TableCell>{activo.responsable ?? '—'}</TableCell>
-                  <TableCell>
-                    <Badge className={estadoStyles[activo.estado]}>{activo.estado}</Badge>
-                  </TableCell>
-                  <TableCell>{activo.placa ?? '—'}</TableCell>
-                  <TableCell onClick={(event) => event.stopPropagation()}>
-                    <Button
-                      variant="ghost"
+          {loading ? <p className="py-6 text-center text-sm text-gray-500">Cargando activos...</p> : null}
+          {error ? <p className="py-6 text-center text-sm text-red-600">{error}</p> : null}
+          {!loading && !error ? (
+            <>
+              <Table>
+                <thead>
+                  <tr>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Nombre</TableHead>
+                    <TableHead>Ubicación</TableHead>
+                    <TableHead>Responsable</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead>Placa</TableHead>
+                    <TableHead>Acciones</TableHead>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activos.map((activo) => (
+                    <TableRow
+                      key={activo.id}
+                      className="cursor-pointer transition hover:bg-gray-50"
                       onClick={() => navigate(`/activos/${activo.id}`)}
                     >
-                      Ver detalle
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </tbody>
-          </Table>
-          {renderEmpty ? (
-            <p className="py-6 text-center text-sm text-gray-500">
-              No hay activos con los filtros seleccionados.
-            </p>
+                      <TableCell className="font-medium text-gray-900">{activo.tipo}</TableCell>
+                      <TableCell>
+                        <div className="text-sm font-semibold text-gray-900">{activo.nombre}</div>
+                        <div className="text-xs text-gray-500">{activo.categoria}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="text-sm text-gray-700">{activo.ubicacion}</div>
+                        <div className="text-xs text-gray-500">{activo.ubicacionDetalle ?? '—'}</div>
+                      </TableCell>
+                      <TableCell>{activo.responsable ?? '—'}</TableCell>
+                      <TableCell>
+                        <Badge className={estadoStyles[activo.estado]}>{activo.estado}</Badge>
+                      </TableCell>
+                      <TableCell>{activo.placa ?? '—'}</TableCell>
+                      <TableCell onClick={(event) => event.stopPropagation()}>
+                        <Button variant="ghost" onClick={() => navigate(`/activos/${activo.id}`)}>
+                          Ver detalle
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </tbody>
+              </Table>
+              {activos.length === 0 ? (
+                <p className="py-6 text-center text-sm text-gray-500">No hay activos con los filtros seleccionados.</p>
+              ) : null}
+            </>
           ) : null}
         </div>
       </Card>
