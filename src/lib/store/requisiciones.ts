@@ -330,7 +330,11 @@ export function useRequisicionesStore() {
   }, [])
 
   useEffect(() => {
-    void loadRequisiciones()
+    const timer = window.setTimeout(() => {
+      void loadRequisiciones()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [loadRequisiciones])
 
   const stats = useMemo(() => {
