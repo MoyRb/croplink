@@ -1,5 +1,5 @@
 -- 0010_bootstrap_org_seed_and_profile.sql
--- Extends bootstrap_org to accept user profile data and optionally seed a minimal structure.
+-- Extends bootstrap_org to accept user profile data without creating demo structure.
 
 CREATE OR REPLACE FUNCTION public.bootstrap_org(
   org_name text,
@@ -17,8 +17,6 @@ DECLARE
   v_profile_org_id uuid;
   v_org_id uuid;
   v_slug text;
-  v_operation_id uuid;
-  v_operations_count bigint;
 BEGIN
   v_user_id := auth.uid();
 
@@ -73,20 +71,6 @@ BEGIN
       full_name = COALESCE(NULLIF(btrim(profile_full_name), ''), full_name),
       updated_at = now()
   WHERE id = v_user_id;
-
-  SELECT COUNT(*)
-  INTO v_operations_count
-  FROM public.operations
-  WHERE organization_id = v_org_id;
-
-  IF v_operations_count = 0 THEN
-    INSERT INTO public.operations (organization_id, name)
-    VALUES (v_org_id, 'Operación 1')
-    RETURNING id INTO v_operation_id;
-
-    INSERT INTO public.ranches (organization_id, operation_id, name)
-    VALUES (v_org_id, v_operation_id, 'Rancho 1');
-  END IF;
 
   RETURN v_org_id;
 END;
