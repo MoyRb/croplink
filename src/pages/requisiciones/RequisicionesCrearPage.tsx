@@ -5,7 +5,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Toast } from '../../components/ui/Toast'
-import { SELECTED_OFFER_STORAGE_KEY, type SelectedOfferPayload } from '../../lib/marketplace/offers'
+import { getOffers, type SelectedOfferPayload } from '../../lib/marketplace/offers'
 import {
   buildIndex,
   getRecommendations,
@@ -411,24 +411,46 @@ export function RequisicionesCrearPage() {
   }, [])
 
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    const stored = window.localStorage.getItem(SELECTED_OFFER_STORAGE_KEY)
-    if (!stored) return
-
-    try {
-      const parsed = JSON.parse(stored) as SelectedOfferPayload
-      if (parsed && parsed.offer) {
-        setSelectedOffer(parsed)
-        setProducto(parsed.producto || '')
-        setCantidad(parsed.cantidad ? String(parsed.cantidad) : '')
-        setUnidad(parsed.unidad as (typeof unidades)[number])
-      }
-    } catch {
-      // noop
-    } finally {
-      window.localStorage.removeItem(SELECTED_OFFER_STORAGE_KEY)
+    const stateOffer = location.state?.selectedOffer as SelectedOfferPayload | undefined
+    if (stateOffer?.offer) {
+      setSelectedOffer(stateOffer)
+      setProducto(stateOffer.producto || '')
+      setCantidad(stateOffer.cantidad ? String(stateOffer.cantidad) : '')
+      setUnidad(stateOffer.unidad as (typeof unidades)[number])
+      return
     }
-  }, [])
+
+    const params = new URLSearchParams(location.search)
+    const offerId = params.get('offerId')
+    const offerQuery = params.get('offerQuery') ?? ''
+    const offerQty = Number(params.get('offerQty') ?? '0')
+    const offerUnit = params.get('offerUnit') ?? 'kg'
+
+    if (!offerId || !offerQuery.trim() || !offerQty || offerQty <= 0) return
+
+    let active = true
+    getOffers({ query: offerQuery, qty: offerQty, unit: offerUnit }).then((offers) => {
+      if (!active) return
+      const offer = offers.find((candidate) => candidate.id === offerId)
+      if (!offer) return
+
+      const payload: SelectedOfferPayload = {
+        producto: offerQuery,
+        cantidad: offerQty,
+        unidad: offerUnit,
+        offer,
+      }
+
+      setSelectedOffer(payload)
+      setProducto(payload.producto)
+      setCantidad(String(payload.cantidad))
+      setUnidad(payload.unidad as (typeof unidades)[number])
+    })
+
+    return () => {
+      active = false
+    }
+  }, [location.search, location.state])
 
   useEffect(() => {
     const loadPlaguicidas = async () => {
