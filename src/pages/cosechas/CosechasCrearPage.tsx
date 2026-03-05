@@ -5,13 +5,13 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Toast } from '../../components/ui/Toast'
-import { getCatalog } from '../../lib/operationCatalog/repo'
+import { useOperationCatalog } from '../../lib/operationCatalog/useOperationCatalog'
 import { createCosecha } from '../../lib/store/cosechas'
 import { getEmpleados, getTarifasActividad } from '../../lib/store/nomina'
 
 export function CosechasCrearPage() {
   const navigate = useNavigate()
-  const catalog = useMemo(() => getCatalog(), [])
+  const { catalog } = useOperationCatalog()
   const empleados = useMemo(() => getEmpleados().filter((item) => item.activo), [])
   const actividades = useMemo(() => [...new Set(getTarifasActividad().map((item) => item.actividad).filter(Boolean))], [])
 

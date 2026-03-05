@@ -6,7 +6,7 @@ import { Input } from '../../components/ui/Input'
 import { Modal } from '../../components/ui/Modal'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import { Toast } from '../../components/ui/Toast'
-import { getCatalog } from '../../lib/operationCatalog/repo'
+import { useOperationCatalog } from '../../lib/operationCatalog/useOperationCatalog'
 import {
   addWorkLog,
   computeWorkLogAmount,
@@ -49,7 +49,7 @@ const initialForm = {
 export function NominaRegistrosPage() {
   const [logs, setLogs] = useState(() => getWorkLogs())
   const [empleados] = useState(() => getEmpleados())
-  const [catalog] = useState(() => getCatalog())
+  const { catalog } = useOperationCatalog()
   const [filters, setFilters] = useState({ employeeId: '', date: '', ranchId: '', status: '' as '' | 'OPEN' | 'PAID' })
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<WorkLog | null>(null)
