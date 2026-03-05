@@ -6,11 +6,7 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import { Toast } from '../../components/ui/Toast'
-import {
-  getPromedioDensidad,
-  useMonitoreosStore,
-  type Monitoreo,
-} from '../../lib/store/monitoreos'
+import { calcAverageDensity, getSessions, type MonitoringSession } from '../../lib/monitoreo'
 import { cn } from '../../lib/utils'
 
 const formatDate = (value: string) =>
@@ -26,13 +22,40 @@ const formatNumber = (value: number) =>
 export function MonitoreosBitacoraPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { monitoreos } = useMonitoreosStore()
+  const [sessions, setSessions] = useState<MonitoringSession[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   const [ranchoFiltro, setRanchoFiltro] = useState('')
   const [cultivoFiltro, setCultivoFiltro] = useState('')
   const [etapaFiltro, setEtapaFiltro] = useState('Todos')
-  const [selected, setSelected] = useState<Monitoreo | null>(null)
+  const [selected, setSelected] = useState<MonitoringSession | null>(null)
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'saved')
+
+  useEffect(() => {
+    let cancelled = false
+
+    const load = async () => {
+      setLoading(true)
+      setError('')
+
+      try {
+        const data = await getSessions()
+        if (!cancelled) setSessions(data)
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'No se pudieron cargar los monitoreos.')
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (location.state?.toast === 'saved') {
@@ -48,28 +71,39 @@ export function MonitoreosBitacoraPage() {
   }, [toastVisible])
 
   const ranchoOpciones = useMemo(
-    () => Array.from(new Set(monitoreos.map((monitoreo) => monitoreo.rancho))).sort(),
-    [monitoreos],
+    () => Array.from(new Set(sessions.map((session) => session.config.rancho))).sort(),
+    [sessions],
   )
 
   const cultivoOpciones = useMemo(
-    () => Array.from(new Set(monitoreos.map((monitoreo) => monitoreo.cultivo))).sort(),
-    [monitoreos],
+    () => Array.from(new Set(sessions.map((session) => session.config.cultivo))).sort(),
+    [sessions],
   )
 
   const etapaOpciones = useMemo(
-    () => ['Todos', ...new Set(monitoreos.map((monitoreo) => monitoreo.etapaFenologica))],
-    [monitoreos],
+    () => ['Todos', ...new Set(sessions.map((session) => session.config.etapaFenologica))],
+    [sessions],
   )
 
   const filtered = useMemo(() => {
-    return monitoreos.filter((monitoreo) => {
-      const matchesRancho = !ranchoFiltro || monitoreo.rancho === ranchoFiltro
-      const matchesCultivo = !cultivoFiltro || monitoreo.cultivo === cultivoFiltro
-      const matchesEtapa = etapaFiltro === 'Todos' || monitoreo.etapaFenologica === etapaFiltro
+    return sessions.filter((session) => {
+      const matchesRancho = !ranchoFiltro || session.config.rancho === ranchoFiltro
+      const matchesCultivo = !cultivoFiltro || session.config.cultivo === cultivoFiltro
+      const matchesEtapa = etapaFiltro === 'Todos' || session.config.etapaFenologica === etapaFiltro
       return matchesRancho && matchesCultivo && matchesEtapa
     })
-  }, [cultivoFiltro, etapaFiltro, monitoreos, ranchoFiltro])
+  }, [cultivoFiltro, etapaFiltro, sessions, ranchoFiltro])
+
+  const getHallazgosCount = (session: MonitoringSession) =>
+    session.sectors.reduce(
+      (total, sector) =>
+        total +
+        sector.points.reduce(
+          (pointTotal, point) => pointTotal + point.plantas.reduce((plantTotal, plant) => plantTotal + plant.hallazgos.length, 0),
+          0,
+        ),
+      0,
+    )
 
   return (
     <div className="space-y-6">
@@ -143,7 +177,12 @@ export function MonitoreosBitacoraPage() {
           </div>
         </div>
         <div className="mt-4">
-          <Table>
+          {loading ? (
+            <p className="py-6 text-center text-sm text-gray-500">Cargando monitoreos...</p>
+          ) : error ? (
+            <p className="py-6 text-center text-sm text-red-600">{error}</p>
+          ) : (
+            <Table>
             <thead>
               <tr>
                 <TableHead>Fecha</TableHead>
@@ -157,7 +196,8 @@ export function MonitoreosBitacoraPage() {
             </thead>
             <tbody>
               {filtered.map((row) => {
-                const promedio = getPromedioDensidad(row.puntos)
+                const promedio = calcAverageDensity(row)
+                const hallazgos = getHallazgosCount(row)
                 return (
                   <TableRow
                     key={row.id}
@@ -165,29 +205,30 @@ export function MonitoreosBitacoraPage() {
                     onClick={() => setSelected(row)}
                   >
                     <TableCell className="font-medium text-gray-900">{formatDate(row.createdAt)}</TableCell>
-                    <TableCell>{row.rancho}</TableCell>
-                    <TableCell>{row.cultivo}</TableCell>
+                    <TableCell>{row.config.rancho}</TableCell>
+                    <TableCell>{row.config.cultivo}</TableCell>
                     <TableCell>
-                      Sector {row.numSector} · Válvula {row.numValvula}
+                      {row.config.sector} · Válvula {row.config.valve || 'N/A'}
                     </TableCell>
                     <TableCell>
                       <Badge
                         className={
-                          row.etapaFenologica === 'Vegetativa'
+                          row.config.etapaFenologica === 'vegetativa'
                             ? 'bg-[#DBFAE6] text-[#0B6B2A]'
                             : 'bg-gray-100 text-gray-700'
                         }
                       >
-                        {row.etapaFenologica}
+                        {row.config.etapaFenologica}
                       </Badge>
                     </TableCell>
                     <TableCell>{formatNumber(promedio)}</TableCell>
-                    <TableCell>{row.hallazgos.length}</TableCell>
+                    <TableCell>{hallazgos}</TableCell>
                   </TableRow>
                 )
               })}
             </tbody>
           </Table>
+          )}
           {filtered.length === 0 ? (
             <p className="py-6 text-center text-sm text-gray-500">
               No encontramos monitoreos con esos filtros.
@@ -210,7 +251,7 @@ export function MonitoreosBitacoraPage() {
           <aside className="absolute right-0 top-0 h-full w-full max-w-lg overflow-y-auto bg-white p-6 shadow-xl">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{selected.rancho}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{selected.config.rancho}</h3>
                 <p className="text-sm text-gray-500">Detalle de monitoreo</p>
               </div>
               <button
@@ -228,36 +269,36 @@ export function MonitoreosBitacoraPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Cultivo</span>
-                <span className="font-medium text-gray-900">{selected.cultivo}</span>
+                <span className="font-medium text-gray-900">{selected.config.cultivo}</span>
               </div>
-              <div className="flex items-center justify-between">
+              {selected.config.humedadRelativa !== undefined ? <div className="flex items-center justify-between">
                 <span className="text-gray-500">Humedad</span>
-                <span className="font-medium text-gray-900">{selected.humedadRelativa}%</span>
-              </div>
-              <div className="flex items-center justify-between">
+                <span className="font-medium text-gray-900">{selected.config.humedadRelativa}%</span>
+              </div> : null}
+              {selected.config.temperatura !== undefined ? <div className="flex items-center justify-between">
                 <span className="text-gray-500">Temperatura</span>
-                <span className="font-medium text-gray-900">{selected.temperatura}°C</span>
-              </div>
+                <span className="font-medium text-gray-900">{selected.config.temperatura}°C</span>
+              </div> : null}
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Condición</span>
-                <span className="font-medium text-gray-900">{selected.condicionMeteorologica}</span>
+                <span className="font-medium text-gray-900">{selected.config.condicionMeteorologica}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Etapa</span>
                 <Badge
                   className={
-                    selected.etapaFenologica === 'Vegetativa'
+                    selected.config.etapaFenologica === 'vegetativa'
                       ? 'bg-[#DBFAE6] text-[#0B6B2A]'
                       : 'bg-gray-100 text-gray-700'
                   }
                 >
-                  {selected.etapaFenologica}
+                  {selected.config.etapaFenologica}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Sector</span>
                 <span className="font-medium text-gray-900">
-                  {selected.numSector} · Válvula {selected.numValvula}
+                  {selected.config.sector} · Válvula {selected.config.valve || 'N/A'}
                 </span>
               </div>
             </div>
@@ -266,32 +307,20 @@ export function MonitoreosBitacoraPage() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-500">Promedio densidad</span>
                 <span className="font-semibold text-gray-900">
-                  {formatNumber(getPromedioDensidad(selected.puntos))}
+                  {formatNumber(calcAverageDensity(selected))}
                 </span>
               </div>
-              {selected.umbralPC !== null ? (
-                <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Umbral PC</span>
-                  <span className="font-semibold text-gray-900">{selected.umbralPC}</span>
-                </div>
-              ) : null}
-              {selected.umbralPROM !== null ? (
-                <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="text-gray-500">Umbral PROM</span>
-                  <span className="font-semibold text-gray-900">{selected.umbralPROM}</span>
-                </div>
-              ) : null}
             </div>
 
             <div className="mt-6 space-y-4">
               <h4 className="text-sm font-semibold text-gray-900">Puntos evaluados</h4>
               <div className="grid gap-3">
-                {selected.puntos.map((punto) => (
-                  <div key={punto.index} className="rounded-2xl border border-[#E5E7EB] p-4">
+                {selected.sectors.flatMap((sector) => sector.points).map((punto, index) => (
+                  <div key={punto.id} className="rounded-2xl border border-[#E5E7EB] p-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-900">Punto {punto.index}</span>
+                      <span className="text-sm font-semibold text-gray-900">Punto {index + 1}</span>
                       <span className="text-sm text-gray-500">
-                        Conteo: {formatNumber(punto.conteoPorMetroLineal)}
+                        Conteo: {formatNumber(punto.conteoEnMetros)}
                       </span>
                     </div>
                   </div>
@@ -301,17 +330,21 @@ export function MonitoreosBitacoraPage() {
 
             <div className="mt-6 space-y-3">
               <h4 className="text-sm font-semibold text-gray-900">Hallazgos</h4>
-              {selected.hallazgos.length === 0 ? (
+              {getHallazgosCount(selected) === 0 ? (
                 <p className="text-sm text-gray-400">Sin hallazgos registrados.</p>
               ) : null}
-              {selected.hallazgos.map((hallazgo, index) => (
+              {selected.sectors
+                .flatMap((sector) => sector.points)
+                .flatMap((point) => point.plantas)
+                .flatMap((planta) => planta.hallazgos)
+                .map((hallazgo, index) => (
                 <div key={`${hallazgo.tipo}-${index}`} className="rounded-2xl border border-[#E5E7EB] p-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-gray-900">{hallazgo.tipo}</span>
-                    <Badge className="bg-gray-100 text-gray-700">{hallazgo.severidad}</Badge>
+                    <Badge className="bg-gray-100 text-gray-700">{hallazgo.severidad || 'N/A'}</Badge>
                   </div>
-                  {hallazgo.nota ? (
-                    <p className="mt-2 text-xs text-gray-500">{hallazgo.nota}</p>
+                  {hallazgo.descripcion ? (
+                    <p className="mt-2 text-xs text-gray-500">{hallazgo.descripcion}</p>
                   ) : null}
                 </div>
               ))}
