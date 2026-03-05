@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -87,10 +87,32 @@ const getSessionMetricValue = (session: MonitoringSession, metric: string): numb
 }
 
 export function MonitoreosGraficasPage() {
-  const [sessions] = useState<MonitoringSession[]>(() => getSessions())
+  const [sessions, setSessions] = useState<MonitoringSession[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
   const [metric, setMetric] = useState('densidad_promedio')
+
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setLoading(true)
+      setError('')
+      try {
+        const data = await getSessions()
+        if (!cancelled) setSessions(data)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'No se pudieron cargar las gráficas.')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const filteredSessions = useMemo(() => {
     return sessions
@@ -179,8 +201,11 @@ export function MonitoreosGraficasPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Monitoreos · Gráficas</h1>
-        <p className="text-sm text-gray-500">Datos cargados desde localStorage usando sesiones de monitoreo.</p>
+        <p className="text-sm text-gray-500">Datos cargados desde Supabase con sesiones de monitoreo.</p>
       </div>
+
+      {loading ? <Card><p className="text-sm text-gray-500">Cargando sesiones...</p></Card> : null}
+      {error ? <Card><p className="text-sm text-red-600">{error}</p></Card> : null}
 
       <Card className="space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Filtros</h2>
