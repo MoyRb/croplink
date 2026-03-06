@@ -44,11 +44,14 @@ import { CosechasDetallePage } from '../pages/cosechas/CosechasDetallePage'
 import { RecomendacionesListaPage } from '../pages/recomendaciones/RecomendacionesListaPage'
 import { RecomendacionesCrearPage } from '../pages/recomendaciones/RecomendacionesCrearPage'
 import { RecomendacionesDetallePage } from '../pages/recomendaciones/RecomendacionesDetallePage'
+import { LandingPage } from '../pages/marketing/LandingPage'
+import { CheckoutPlaceholderPage } from '../pages/marketing/CheckoutPlaceholderPage'
 
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/checkout" element={<CheckoutPlaceholderPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
       <Route path="/onboarding" element={<OnboardingOrgPage />} />
@@ -179,7 +182,7 @@ export function AppRouter() {
         <Route path="/configuracion/estructura/cultivos" element={<CultivosPage />} />
         <Route path="/configuracion/estructura/temporadas" element={<TemporadasPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }
