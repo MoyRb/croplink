@@ -760,7 +760,7 @@ export function RequisicionesCrearPage() {
                         <td className="px-4 py-3 text-gray-700">{fallbackValue(item.reentry_period)}</td>
                         <td className="px-4 py-3 text-gray-700">{fallbackValue(item.dose)}</td>
                         <td className="px-4 py-3 text-right">
-                          <Button type="button" variant="secondary" onClick={() => handleAgregarItem(item)}>
+                          <Button type="button" variant="secondary" className="hover:bg-[#00C050] hover:text-white hover:border-[#00C050]" onClick={() => handleAgregarItem(item)}>
                             Agregar a requisición
                           </Button>
                         </td>
