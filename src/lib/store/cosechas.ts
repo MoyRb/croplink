@@ -340,15 +340,11 @@ export async function createCosecha(payload: CreateCosechaPayload) {
   const { error: crewsError } = await supabase.from('harvest_crews').insert(crewRows)
   if (crewsError) throw new Error(crewsError.message)
 
-  const workLogByEmployee = new Map((workLogs ?? []).map((item) => [item.employee_id, item.id]))
-  const harvestWorkLogsRows = payload.cuadrilla
-    .map((row) => workLogByEmployee.get(row.empleadoId))
-    .filter((workLogId): workLogId is string => Boolean(workLogId))
-    .map((workLogId) => ({
-      organization_id: organizationId,
-      harvest_id: createdHarvest.id,
-      work_log_id: workLogId,
-    }))
+  const harvestWorkLogsRows = (workLogs ?? []).map((item) => ({
+    organization_id: organizationId,
+    harvest_id: createdHarvest.id,
+    work_log_id: item.id,
+  }))
 
   if (harvestWorkLogsRows.length > 0) {
     const { error: linksError } = await supabase.from('harvest_work_logs').insert(harvestWorkLogsRows)
