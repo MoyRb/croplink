@@ -273,7 +273,9 @@ const persistSessionTree = async (organizationId: string, session: MonitoringSes
     valve_snapshot: sector.valve ?? null,
     sort_order: index,
   }))
-  const { error: sectorInsertError } = await supabase.from('monitoring_sectors').insert(sectorRows)
+  const { error: sectorInsertError } = await supabase
+    .from('monitoring_sectors')
+    .upsert(sectorRows, { onConflict: 'id' })
   if (sectorInsertError) throw new Error(sectorInsertError.message)
 
   const pointRows = session.sectors.flatMap((sector) =>
@@ -289,7 +291,9 @@ const persistSessionTree = async (organizationId: string, session: MonitoringSes
     })),
   )
   if (pointRows.length > 0) {
-    const { error: pointInsertError } = await supabase.from('monitoring_points').insert(pointRows)
+    const { error: pointInsertError } = await supabase
+      .from('monitoring_points')
+      .upsert(pointRows, { onConflict: 'id' })
     if (pointInsertError) throw new Error(pointInsertError.message)
   }
 
@@ -306,7 +310,9 @@ const persistSessionTree = async (organizationId: string, session: MonitoringSes
     ),
   )
   if (plantRows.length > 0) {
-    const { error: plantInsertError } = await supabase.from('monitoring_plants').insert(plantRows)
+    const { error: plantInsertError } = await supabase
+      .from('monitoring_plants')
+      .upsert(plantRows, { onConflict: 'id' })
     if (plantInsertError) throw new Error(plantInsertError.message)
   }
 
@@ -329,7 +335,9 @@ const persistSessionTree = async (organizationId: string, session: MonitoringSes
   )
 
   if (findingRows.length > 0) {
-    const { error: findingInsertError } = await supabase.from('monitoring_findings').insert(findingRows)
+    const { error: findingInsertError } = await supabase
+      .from('monitoring_findings')
+      .upsert(findingRows, { onConflict: 'id' })
     if (findingInsertError) throw new Error(findingInsertError.message)
   }
 }

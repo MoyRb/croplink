@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 
 import { Badge } from '../../components/ui/Badge'
@@ -31,6 +31,8 @@ export function MonitoreosSesionPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const isSavingRef = useRef(false)
+  const pendingUpdaterRef = useRef<Parameters<typeof updateSession>[1] | null>(null)
   const [rootLengthError, setRootLengthError] = useState('')
   const [rootWhitePctError, setRootWhitePctError] = useState('')
 
@@ -71,6 +73,14 @@ export function MonitoreosSesionPage() {
 
   const persistSession = async (updater: Parameters<typeof updateSession>[1]) => {
     if (!session) return
+
+    if (isSavingRef.current) {
+      // Queue only the latest updater; discard any previously queued one
+      pendingUpdaterRef.current = updater
+      return
+    }
+
+    isSavingRef.current = true
     setSaving(true)
     try {
       const updated = await updateSession(session.id, updater)
@@ -78,7 +88,14 @@ export function MonitoreosSesionPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la sesión.')
     } finally {
+      isSavingRef.current = false
       setSaving(false)
+      // Run the last queued updater, if any
+      const pending = pendingUpdaterRef.current
+      if (pending) {
+        pendingUpdaterRef.current = null
+        void persistSession(pending)
+      }
     }
   }
 
