@@ -213,16 +213,30 @@ export const getSessions = async (): Promise<MonitoringSession[]> => {
   if (sessions.length === 0) return []
 
   const sessionIds = sessions.map((session) => session.id)
-  const [{ data: sectorsData, error: sectorsError }, { data: pointsData, error: pointsError }, { data: plantsData, error: plantsError }, { data: findingsData, error: findingsError }] = await Promise.all([
-    supabase.from('monitoring_sectors').select('id, session_id, name_snapshot, tunnel_snapshot, valve_snapshot, sort_order').in('session_id', sessionIds),
-    supabase.from('monitoring_points').select('id, monitoring_sector_id, point_index, metros_muestreados, conteo_en_metros').in('session_id', sessionIds),
-    supabase.from('monitoring_plants').select('id, monitoring_point_id, plant_index, metrics').in('session_id', sessionIds),
-    supabase.from('monitoring_findings').select('id, monitoring_plant_id, tipo, descripcion, pc, severity, photos').in('session_id', sessionIds),
-  ])
 
-  if (sectorsError || pointsError || plantsError || findingsError) {
-    throw new Error(sectorsError?.message || pointsError?.message || plantsError?.message || findingsError?.message)
-  }
+  const { data: sectorsData, error: sectorsError } = await supabase
+    .from('monitoring_sectors')
+    .select('id, session_id, name_snapshot, tunnel_snapshot, valve_snapshot, sort_order')
+    .in('session_id', sessionIds)
+  if (sectorsError) throw new Error(sectorsError.message)
+
+  const sectorIds = (sectorsData ?? []).map((s) => s.id)
+  const { data: pointsData, error: pointsError } = sectorIds.length > 0
+    ? await supabase.from('monitoring_points').select('id, monitoring_sector_id, point_index, metros_muestreados, conteo_en_metros').in('monitoring_sector_id', sectorIds)
+    : { data: [], error: null }
+  if (pointsError) throw new Error(pointsError.message)
+
+  const pointIds = (pointsData ?? []).map((p) => p.id)
+  const { data: plantsData, error: plantsError } = pointIds.length > 0
+    ? await supabase.from('monitoring_plants').select('id, monitoring_point_id, plant_index, metrics').in('monitoring_point_id', pointIds)
+    : { data: [], error: null }
+  if (plantsError) throw new Error(plantsError.message)
+
+  const plantIds = (plantsData ?? []).map((p) => p.id)
+  const { data: findingsData, error: findingsError } = plantIds.length > 0
+    ? await supabase.from('monitoring_findings').select('id, monitoring_plant_id, tipo, descripcion, pc, severity, photos').in('monitoring_plant_id', plantIds)
+    : { data: [], error: null }
+  if (findingsError) throw new Error(findingsError.message)
 
   return sessions.map((session) =>
     mapRowsToSession(

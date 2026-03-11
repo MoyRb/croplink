@@ -55,7 +55,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         void loadMyProfile(data.session.user.id)
       } else {
         setMyProfile(null)
-        setMyProfileLoaded(false)
+        setMyProfileLoaded(true)
       }
       setLoading(false)
     })
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         void loadMyProfile(nextSession.user.id)
       } else {
         setMyProfile(null)
-        setMyProfileLoaded(false)
+        setMyProfileLoaded(true)
       }
       setLoading(false)
     })

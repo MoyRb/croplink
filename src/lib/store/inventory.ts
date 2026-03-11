@@ -106,7 +106,11 @@ const mapMovement = (row: InventoryMovementDb): InventoryMovement => ({
 })
 
 const getOrganizationId = async () => {
-  const { data, error } = await supabase.from('profiles').select('organization_id').single<{ organization_id: string | null }>()
+  const { data: authData, error: authError } = await supabase.auth.getUser()
+  if (authError || !authData?.user?.id) {
+    throw new Error('No hay sesión activa.')
+  }
+  const { data, error } = await supabase.from('profiles').select('organization_id').eq('id', authData.user.id).single<{ organization_id: string | null }>()
   if (error || !data?.organization_id) {
     throw new Error(error?.message || 'No hay organización asociada al usuario.')
   }

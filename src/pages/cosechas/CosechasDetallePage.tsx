@@ -175,7 +175,7 @@ export function CosechasDetallePage() {
             </thead>
             <tbody>
               {cosecha.cuadrilla.map((row) => (
-                <TableRow key={`${row.empleadoId}-${row.unidades}`}>
+                <TableRow key={row.workLogId ?? row.empleadoId}>
                   <TableCell>{row.empleadoNombre ?? row.empleadoId}</TableCell>
                   <TableCell>{row.unidades}</TableCell>
                   <TableCell>{formatCurrency(row.amount || row.unidades * cosecha.tarifa)}</TableCell>

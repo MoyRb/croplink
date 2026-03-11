@@ -325,7 +325,7 @@ export function useRequisicionesStore() {
       return
     }
 
-    setRequisiciones((((data as unknown) as RequisitionDb[] | null) ?? []).map(mapRequisition))
+    setRequisiciones(((data as RequisitionDb[] | null) ?? []).map(mapRequisition))
     setIsLoading(false)
   }, [])
 
