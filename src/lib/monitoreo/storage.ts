@@ -391,6 +391,27 @@ export const updateSession = async (id: string, updater: (session: MonitoringSes
   return next
 }
 
+export const updatePlantMetrics = async (plantId: string, metrics: Record<string, number | string>): Promise<void> => {
+  const { error } = await supabase
+    .from('monitoring_plants')
+    .update({ metrics })
+    .eq('id', plantId)
+  if (error) throw new Error(error.message)
+}
+
+export const updatePointMeasurements = async (
+  pointId: string,
+  metrosMuestreados: number,
+  conteoEnMetros: number,
+): Promise<void> => {
+  const density = metrosMuestreados > 0 ? conteoEnMetros / metrosMuestreados : null
+  const { error } = await supabase
+    .from('monitoring_points')
+    .update({ metros_muestreados: metrosMuestreados, conteo_en_metros: conteoEnMetros, density })
+    .eq('id', pointId)
+  if (error) throw new Error(error.message)
+}
+
 export const addSectorToSession = (id: string) =>
   updateSession(id, (session) => {
     const newSectorName = `Sector ${session.sectors.length + 1}`

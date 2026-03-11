@@ -15,6 +15,8 @@ import {
   findThreshold,
   getRootMetricsTemplates,
   getSessionById,
+  updatePlantMetrics,
+  updatePointMeasurements,
   type HallazgoTipo,
   type MetricTemplate,
   type MonitoringSession,
@@ -33,6 +35,10 @@ export function MonitoreosSesionPage() {
   const [saving, setSaving] = useState(false)
   const isSavingRef = useRef(false)
   const pendingUpdaterRef = useRef<Parameters<typeof updateSession>[1] | null>(null)
+  const metricDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingMetricRef = useRef<{ plantId: string; metrics: Record<string, number | string> } | null>(null)
+  const pointDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingPointRef = useRef<{ pointId: string; metros: number; conteo: number } | null>(null)
   const [rootLengthError, setRootLengthError] = useState('')
   const [rootWhitePctError, setRootWhitePctError] = useState('')
 
@@ -103,44 +109,117 @@ export function MonitoreosSesionPage() {
   if (error && !session) return <Card><p className="text-sm text-red-600">{error}</p></Card>
   if (!session) return <Navigate to="/monitoreos/lista" replace />
 
-  const sector = session.sectors[activeSector]
-  const point = sector.points[activePoint]
-  const plant = point.plantas[activePlant]
+  const sector = session.sectors[activeSector] ?? session.sectors[0]
+  if (!sector) return <Card><p className="text-sm text-gray-500">Sin sectores en esta sesión.</p></Card>
+  const point = sector.points[activePoint] ?? sector.points[0]
+  if (!point) return <Card><p className="text-sm text-gray-500">Sin puntos en este sector.</p></Card>
+  const plant = point.plantas[activePlant] ?? point.plantas[0]
+  if (!plant) return <Card><p className="text-sm text-gray-500">Sin plantas en este punto.</p></Card>
 
   const saveMetric = (key: string, rawValue: string, templatePool: MetricTemplate[] = templates) => {
-    const metricTemplate = templatePool.find((template) => template.key === key)
-    const value = metricTemplate?.type === 'text' || metricTemplate?.type === 'select' ? rawValue : Number(rawValue)
+    const metricTemplate = templatePool.find((t) => t.key === key)
+    const isText = metricTemplate?.type === 'text' || metricTemplate?.type === 'select'
 
-    if (key === 'raiz_longitud_cm' && rawValue !== '' && Number(rawValue) < 0) {
-      setRootLengthError('La longitud de raíz debe ser mayor o igual a 0 cm.')
-      return
-    }
-
-    if (key === 'raiz_longitud_cm') setRootLengthError('')
-
-    if (key === 'raiz_blanca_pct' && rawValue !== '') {
-      const pct = Number(rawValue)
-      if (pct < 0 || pct > 100) {
-        setRootWhitePctError('El porcentaje de raíz blanca debe estar entre 0 y 100.')
+    let value: number | string
+    if (isText) {
+      value = rawValue
+    } else {
+      if (rawValue === '') {
+        // Clear numeric metric — remove from map
+        setSessionState((prev) => {
+          if (!prev) return prev
+          const next = structuredClone(prev)
+          const s = next.sectors[Math.min(activeSector, next.sectors.length - 1)]
+          const p = s?.points[Math.min(activePoint, (s?.points.length ?? 1) - 1)]
+          const pl = p?.plantas[Math.min(activePlant, (p?.plantas.length ?? 1) - 1)]
+          if (pl) delete pl.metrics[key]
+          return next
+        })
         return
       }
+      const parsed = Number(rawValue)
+      if (Number.isNaN(parsed)) return
+      value = Math.max(0, parsed)
     }
 
-    if (key === 'raiz_blanca_pct') setRootWhitePctError('')
+    // Field-specific validation
+    if (key === 'raiz_longitud_cm') {
+      setRootLengthError((value as number) < 0 ? 'La longitud de raíz debe ser mayor o igual a 0 cm.' : '')
+    }
+    if (key === 'raiz_blanca_pct') {
+      const pct = Number(value)
+      if (pct > 100) { setRootWhitePctError('El porcentaje de raíz blanca debe estar entre 0 y 100.'); return }
+      setRootWhitePctError('')
+    }
 
-    void persistSession((draft) => {
-      const next = structuredClone(draft)
-      next.sectors[activeSector].points[activePoint].plantas[activePlant].metrics[key] = value
+    // 1. Optimistic local update
+    setSessionState((prev) => {
+      if (!prev) return prev
+      const next = structuredClone(prev)
+      const s = next.sectors[Math.min(activeSector, next.sectors.length - 1)]
+      const p = s?.points[Math.min(activePoint, (s?.points.length ?? 1) - 1)]
+      const pl = p?.plantas[Math.min(activePlant, (p?.plantas.length ?? 1) - 1)]
+      if (pl) pl.metrics[key] = value
       return next
     })
+
+    // 2. Accumulate pending metrics for this plant
+    const currentPending = pendingMetricRef.current?.plantId === plant.id ? pendingMetricRef.current.metrics : { ...plant.metrics }
+    pendingMetricRef.current = { plantId: plant.id, metrics: { ...currentPending, [key]: value } }
+
+    // 3. Debounced targeted save (600ms)
+    if (metricDebounceRef.current) clearTimeout(metricDebounceRef.current)
+    metricDebounceRef.current = setTimeout(async () => {
+      const pending = pendingMetricRef.current
+      if (!pending) return
+      pendingMetricRef.current = null
+      setSaving(true)
+      try {
+        await updatePlantMetrics(pending.plantId, pending.metrics)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'No se pudo guardar la métrica.')
+      } finally {
+        setSaving(false)
+      }
+    }, 600)
   }
 
   const savePointField = (field: 'conteoEnMetros' | 'metrosMuestreados', value: number) => {
-    void persistSession((draft) => {
-      const next = structuredClone(draft)
-      next.sectors[activeSector].points[activePoint][field] = value
+    const safeValue = Math.max(0, Number.isNaN(value) ? 0 : value)
+
+    // 1. Optimistic local update
+    setSessionState((prev) => {
+      if (!prev) return prev
+      const next = structuredClone(prev)
+      const s = next.sectors[Math.min(activeSector, next.sectors.length - 1)]
+      const p = s?.points[Math.min(activePoint, (s?.points.length ?? 1) - 1)]
+      if (p) p[field] = safeValue
       return next
     })
+
+    // 2. Accumulate pending point state
+    const prev = pendingPointRef.current?.pointId === point.id ? pendingPointRef.current : { pointId: point.id, metros: point.metrosMuestreados, conteo: point.conteoEnMetros }
+    pendingPointRef.current = {
+      pointId: point.id,
+      metros: field === 'metrosMuestreados' ? safeValue : prev.metros,
+      conteo: field === 'conteoEnMetros' ? safeValue : prev.conteo,
+    }
+
+    // 3. Debounced targeted save (600ms)
+    if (pointDebounceRef.current) clearTimeout(pointDebounceRef.current)
+    pointDebounceRef.current = setTimeout(async () => {
+      const pending = pendingPointRef.current
+      if (!pending) return
+      pendingPointRef.current = null
+      setSaving(true)
+      try {
+        await updatePointMeasurements(pending.pointId, pending.metros, pending.conteo)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'No se pudo guardar el punto.')
+      } finally {
+        setSaving(false)
+      }
+    }, 600)
   }
 
   const addHallazgo = () => {
@@ -215,7 +294,7 @@ export function MonitoreosSesionPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {point.plantas.map((item, index) => (
+          {(point?.plantas ?? []).map((item, index) => (
             <button
               key={item.id}
               onClick={() => setActivePlant(index)}
@@ -232,8 +311,8 @@ export function MonitoreosSesionPage() {
       <Card className="space-y-4">
         <h2 className="font-semibold text-gray-900">Captura de punto</h2>
         <div className="grid gap-3 md:grid-cols-3">
-          <Input type="number" value={point.metrosMuestreados} onChange={(event) => savePointField('metrosMuestreados', Number(event.target.value))} />
-          <Input type="number" value={point.conteoEnMetros} onChange={(event) => savePointField('conteoEnMetros', Number(event.target.value))} />
+          <Input type="number" min={0} step={0.01} value={point.metrosMuestreados} onChange={(event) => savePointField('metrosMuestreados', Number(event.target.value))} />
+          <Input type="number" min={0} step={1} value={point.conteoEnMetros} onChange={(event) => savePointField('conteoEnMetros', Number(event.target.value))} />
           <Input type="text" value={calcDensity(point.conteoEnMetros, point.metrosMuestreados).toFixed(2)} readOnly />
         </div>
       </Card>
@@ -259,7 +338,7 @@ export function MonitoreosSesionPage() {
                     ))}
                   </select>
                 ) : (
-                  <Input type={template.type === 'text' ? 'text' : 'number'} value={value?.toString() ?? ''} onChange={(event) => saveMetric(template.key, event.target.value)} />
+                  <Input type={template.type === 'text' ? 'text' : 'number'} min={template.type !== 'text' ? 0 : undefined} step={template.type !== 'text' ? 0.01 : undefined} value={value?.toString() ?? ''} onChange={(event) => saveMetric(template.key, event.target.value)} />
                 )}
               </div>
             )
@@ -281,7 +360,7 @@ export function MonitoreosSesionPage() {
               return (
                 <div key={template.key} className={`rounded-2xl border p-3 ${highlight}`}>
                   <label className="mb-1 block text-xs font-semibold text-gray-600">{template.label}</label>
-                  <Input type={template.type === 'text' ? 'text' : 'number'} value={value?.toString() ?? ''} onChange={(event) => saveMetric(template.key, event.target.value, rootTemplates)} />
+                  <Input type={template.type === 'text' ? 'text' : 'number'} min={template.type !== 'text' ? 0 : undefined} step={template.type !== 'text' ? 0.01 : undefined} value={value?.toString() ?? ''} onChange={(event) => saveMetric(template.key, event.target.value, rootTemplates)} />
                 </div>
               )
             })}
