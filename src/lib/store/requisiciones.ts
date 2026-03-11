@@ -72,6 +72,7 @@ export type RequisicionOperationContext = {
 
 export type Requisicion = {
   id: string
+  dbId: string
   producto: string
   cantidad: number
   unidad: 'kg' | 'L' | 'pza'
@@ -86,7 +87,7 @@ export type Requisicion = {
   operationContext?: RequisicionOperationContext
 }
 
-export type NuevaRequisicion = Omit<Requisicion, 'id' | 'estado' | 'fecha' | 'total'> & {
+export type NuevaRequisicion = Omit<Requisicion, 'id' | 'dbId' | 'estado' | 'fecha' | 'total'> & {
   total?: number
   fecha?: string
   estado?: RequisicionEstado
@@ -244,6 +245,7 @@ const mapRequisition = (row: RequisitionDb): Requisicion => {
   const cropSeason = resolveCropSeason(row.ranch_crop_seasons)
   return {
     id: row.folio || row.id,
+    dbId: row.id,
     producto: firstItem?.commercial_name ?? 'Sin productos',
     cantidad: Number(firstItem?.quantity ?? 0),
     unidad: (firstItem?.unit as Requisicion['unidad']) ?? 'pza',
@@ -325,7 +327,7 @@ export function useRequisicionesStore() {
       return
     }
 
-    setRequisiciones(((data as RequisitionDb[] | null) ?? []).map(mapRequisition))
+    setRequisiciones(((data as unknown as RequisitionDb[] | null) ?? []).map(mapRequisition))
     setIsLoading(false)
   }, [])
 
@@ -424,12 +426,24 @@ export function useRequisicionesStore() {
     await loadRequisiciones()
   }, [loadRequisiciones])
 
+  const updateRequisicionEstado = useCallback(async (dbId: string, estado: RequisicionEstado) => {
+    const { organizationId } = await getCurrentUserAndOrganization()
+    const { error } = await supabase
+      .from('requisitions')
+      .update({ status: statusToDb[estado] })
+      .eq('id', dbId)
+      .eq('organization_id', organizationId)
+    if (error) throw new Error(error.message)
+    await loadRequisiciones()
+  }, [loadRequisiciones])
+
   return {
     requisiciones,
     stats,
     isLoading,
     loadError,
     addRequisicion,
+    updateRequisicionEstado,
     refreshRequisiciones: loadRequisiciones,
   }
 }

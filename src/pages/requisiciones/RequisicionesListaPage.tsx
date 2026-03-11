@@ -46,11 +46,13 @@ const formatDate = (value: string) =>
 export function RequisicionesListaPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { requisiciones, isLoading, loadError, refreshRequisiciones } = useRequisicionesStore()
+  const { requisiciones, isLoading, loadError, refreshRequisiciones, updateRequisicionEstado } = useRequisicionesStore()
   const [activeStatus, setActiveStatus] = useState<RequisicionEstado | 'Todos'>('Todos')
   const [search, setSearch] = useState('')
   const [ranchFilter, setRanchFilter] = useState('Todos')
   const [selected, setSelected] = useState<Requisicion | null>(null)
+  const [statusUpdating, setStatusUpdating] = useState(false)
+  const [statusError, setStatusError] = useState<string | null>(null)
   const [toastVisible, setToastVisible] = useState(() => location.state?.toast === 'created')
 
   useEffect(() => {
@@ -227,9 +229,9 @@ export function RequisicionesListaPage() {
             className="absolute inset-0 bg-black/40"
             role="button"
             tabIndex={0}
-            onClick={() => setSelected(null)}
+            onClick={() => { setSelected(null); setStatusError(null) }}
             onKeyDown={(event) => {
-              if (event.key === 'Escape') setSelected(null)
+              if (event.key === 'Escape') { setSelected(null); setStatusError(null) }
             }}
           />
           <aside className="absolute right-0 top-0 h-full w-full max-w-md overflow-y-auto bg-white p-6 shadow-xl">
@@ -240,7 +242,7 @@ export function RequisicionesListaPage() {
               </div>
               <button
                 className="rounded-full px-3 py-1 text-sm font-medium text-gray-500 hover:bg-gray-100"
-                onClick={() => setSelected(null)}
+                onClick={() => { setSelected(null); setStatusError(null) }}
               >
                 Cerrar
               </button>
@@ -259,7 +261,31 @@ export function RequisicionesListaPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Estado</span>
-                <Badge className={statusBadgeStyles[selected.estado]}>{selected.estado}</Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <select
+                    disabled={statusUpdating}
+                    value={selected.estado}
+                    className="rounded-full border border-[#E5E7EB] bg-white px-3 py-1 text-xs font-semibold text-gray-700 focus:border-[#00C050] focus:outline-none focus:ring-2 focus:ring-[#DBFAE6] disabled:opacity-50"
+                    onChange={async (e) => {
+                      const nuevoEstado = e.target.value as RequisicionEstado
+                      setStatusUpdating(true)
+                      setStatusError(null)
+                      try {
+                        await updateRequisicionEstado(selected.dbId, nuevoEstado)
+                        setSelected((prev) => (prev ? { ...prev, estado: nuevoEstado } : prev))
+                      } catch (err) {
+                        setStatusError(err instanceof Error ? err.message : 'Error al actualizar estado.')
+                      } finally {
+                        setStatusUpdating(false)
+                      }
+                    }}
+                  >
+                    {(['Pendiente', 'En revisión', 'En comparativa', 'Aprobada', 'Rechazada', 'Completada'] as RequisicionEstado[]).map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  {statusError ? <p className="text-xs text-red-600">{statusError}</p> : null}
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-500">Total</span>
@@ -343,7 +369,7 @@ export function RequisicionesListaPage() {
                   Ejecutar requisición
                 </Button>
               ) : null}
-              <Button onClick={() => setSelected(null)}>Cerrar detalle</Button>
+              <Button onClick={() => { setSelected(null); setStatusError(null) }}>Cerrar detalle</Button>
             </div>
           </aside>
         </div>
