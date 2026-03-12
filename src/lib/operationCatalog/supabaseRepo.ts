@@ -3,7 +3,7 @@ import type { Crop, Operation, OperationCatalog, Ranch, RanchCropSeason, Season,
 
 type DbOperation = { id: string; name: string; description: string | null; created_at: string }
 type DbRanch = { id: string; operation_id: string; name: string; description: string | null; location: string | null; created_at: string }
-type DbSector = { id: string; ranch_id: string; name: string; description: string | null; code: string | null }
+type DbSector = { id: string; ranch_id: string; name: string; description: string | null; code: string | null; surface_ha: number | null }
 type DbTunnel = { id: string; sector_id: string; name: string; description: string | null; code: string | null }
 type DbValve = { id: string; sector_id: string; tunnel_id: string | null; name: string; description: string | null; code: string | null }
 type DbCrop = { id: string; name: string; description: string | null }
@@ -24,7 +24,7 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
   const [operationsResult, ranchesResult, sectorsResult, tunnelsResult, valvesResult, cropsResult, seasonsResult, ranchCropSeasonsResult] = await Promise.all([
     supabase.from('operations').select('id, name, description, created_at').eq('organization_id', organizationId).order('name', { ascending: true }),
     supabase.from('ranches').select('id, operation_id, name, location, description, created_at').eq('organization_id', organizationId).order('name', { ascending: true }),
-    supabase.from('sectors').select('id, ranch_id, name, code, description').eq('organization_id', organizationId).order('name', { ascending: true }),
+    supabase.from('sectors').select('id, ranch_id, name, code, description, surface_ha').eq('organization_id', organizationId).order('name', { ascending: true }),
     supabase.from('tunnels').select('id, sector_id, name, code, description').eq('organization_id', organizationId).order('name', { ascending: true }),
     supabase.from('valves').select('id, sector_id, tunnel_id, name, code, description').eq('organization_id', organizationId).order('name', { ascending: true }),
     supabase.from('crops').select('id, name, description').eq('organization_id', organizationId).order('name', { ascending: true }),
@@ -51,7 +51,7 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
       location: item.location ?? undefined,
       createdAt: item.created_at,
     })),
-    sectors: ((sectorsResult.data ?? []) as DbSector[]).map((item): Sector => ({ id: item.id, ranchId: item.ranch_id, name: item.name, description: item.description ?? undefined, code: item.code ?? undefined })),
+    sectors: ((sectorsResult.data ?? []) as DbSector[]).map((item): Sector => ({ id: item.id, ranchId: item.ranch_id, name: item.name, description: item.description ?? undefined, code: item.code ?? undefined, areaHa: item.surface_ha ?? null })),
     tunnels: ((tunnelsResult.data ?? []) as DbTunnel[]).map((item): Tunnel => ({ id: item.id, sectorId: item.sector_id, name: item.name, description: item.description ?? undefined, code: item.code ?? undefined })),
     valves: ((valvesResult.data ?? []) as DbValve[]).map((item): Valve => ({
       id: item.id,
@@ -107,7 +107,7 @@ export async function deleteRanchSupabase(id: string) { const { error } = await 
 export async function upsertSectorSupabase(organizationId: string, payload: Sector) {
   const name = requireText(payload.name, 'El nombre del sector es requerido.')
   if (!payload.ranchId) throw new Error('Selecciona un rancho.')
-  const { error } = await supabase.from('sectors').upsert({ id: payload.id || undefined, organization_id: organizationId, ranch_id: payload.ranchId, name, code: payload.code?.trim() || null, description: payload.description?.trim() || null })
+  const { error } = await supabase.from('sectors').upsert({ id: payload.id || undefined, organization_id: organizationId, ranch_id: payload.ranchId, name, code: payload.code?.trim() || null, description: payload.description?.trim() || null, surface_ha: payload.areaHa ?? null })
   throwIfError(error)
 }
 

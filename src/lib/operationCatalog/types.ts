@@ -20,6 +20,7 @@ export type Sector = {
   name: string
   description?: string
   code?: string
+  areaHa?: number | null
 }
 
 export type Tunnel = {
