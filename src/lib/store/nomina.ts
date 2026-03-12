@@ -32,6 +32,8 @@ export type Empleado = {
   activo: boolean
   fechaAlta: string
   notas?: string
+  homoclave?: string | null
+  nss?: string | null
 }
 
 export type PeriodoNomina = {
@@ -178,6 +180,8 @@ export async function getEmpleados() {
     activo: Boolean(row.is_active),
     fechaAlta: row.hire_date ?? new Date().toISOString().slice(0, 10),
     notas: row.notes ?? undefined,
+    homoclave: row.homoclave ?? null,
+    nss: row.nss ?? null,
   })) as Empleado[]
 }
 
@@ -194,6 +198,8 @@ export async function addEmpleado(data: Omit<Empleado, 'id'>) {
     is_active: data.activo,
     hire_date: data.fechaAlta,
     notes: data.notas ?? null,
+    homoclave: data.homoclave?.trim().toUpperCase() || null,
+    nss: data.nss?.trim() || null,
   }
   const { error } = await supabase.from('employees').insert(payload)
   if (error) throw new Error(error.message)
@@ -213,6 +219,8 @@ export async function updateEmpleado(empleado: Empleado) {
       is_active: empleado.activo,
       hire_date: empleado.fechaAlta,
       notes: empleado.notas ?? null,
+      homoclave: empleado.homoclave?.trim().toUpperCase() || null,
+      nss: empleado.nss?.trim() || null,
     })
     .eq('id', empleado.id)
   if (error) throw new Error(error.message)
