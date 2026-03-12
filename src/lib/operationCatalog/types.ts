@@ -21,6 +21,7 @@ export type Sector = {
   description?: string
   code?: string
   areaHa?: number | null
+  number?: number | null
 }
 
 export type Tunnel = {
@@ -29,6 +30,7 @@ export type Tunnel = {
   name: string
   description?: string
   code?: string
+  number?: number | null
 }
 
 export type Valve = {
@@ -38,6 +40,7 @@ export type Valve = {
   name: string
   description?: string
   code?: string
+  number?: number | null
 }
 
 export type Crop = {

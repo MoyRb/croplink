@@ -3,9 +3,9 @@ import type { Crop, Operation, OperationCatalog, Ranch, RanchCropSeason, Season,
 
 type DbOperation = { id: string; name: string; description: string | null; created_at: string }
 type DbRanch = { id: string; operation_id: string; name: string; description: string | null; location: string | null; created_at: string }
-type DbSector = { id: string; ranch_id: string; name: string; description: string | null; code: string | null; surface_ha: number | null }
-type DbTunnel = { id: string; sector_id: string; name: string; description: string | null; code: string | null }
-type DbValve = { id: string; sector_id: string; tunnel_id: string | null; name: string; description: string | null; code: string | null }
+type DbSector = { id: string; ranch_id: string; name: string; description: string | null; code: string | null; surface_ha: number | null; number: number | null }
+type DbTunnel = { id: string; sector_id: string; name: string; description: string | null; code: string | null; number: number | null }
+type DbValve = { id: string; sector_id: string; tunnel_id: string | null; name: string; description: string | null; code: string | null; number: number | null }
 type DbCrop = { id: string; name: string; description: string | null }
 type DbSeason = { id: string; label: string; description: string | null; start_date: string; end_date: string }
 type DbRanchCropSeason = { id: string; ranch_id: string; crop_id: string; season_id: string }
@@ -24,9 +24,9 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
   const [operationsResult, ranchesResult, sectorsResult, tunnelsResult, valvesResult, cropsResult, seasonsResult, ranchCropSeasonsResult] = await Promise.all([
     supabase.from('operations').select('id, name, description, created_at').eq('organization_id', organizationId).order('name', { ascending: true }),
     supabase.from('ranches').select('id, operation_id, name, location, description, created_at').eq('organization_id', organizationId).order('name', { ascending: true }),
-    supabase.from('sectors').select('id, ranch_id, name, code, description, surface_ha').eq('organization_id', organizationId).order('name', { ascending: true }),
-    supabase.from('tunnels').select('id, sector_id, name, code, description').eq('organization_id', organizationId).order('name', { ascending: true }),
-    supabase.from('valves').select('id, sector_id, tunnel_id, name, code, description').eq('organization_id', organizationId).order('name', { ascending: true }),
+    supabase.from('sectors').select('id, ranch_id, name, code, description, surface_ha, number').eq('organization_id', organizationId).order('number', { ascending: true, nullsFirst: false }),
+    supabase.from('tunnels').select('id, sector_id, name, code, description, number').eq('organization_id', organizationId).order('number', { ascending: true, nullsFirst: false }),
+    supabase.from('valves').select('id, sector_id, tunnel_id, name, code, description, number').eq('organization_id', organizationId).order('number', { ascending: true, nullsFirst: false }),
     supabase.from('crops').select('id, name, description').eq('organization_id', organizationId).order('name', { ascending: true }),
     supabase.from('seasons').select('id, label, start_date, end_date, description').eq('organization_id', organizationId).order('start_date', { ascending: false }),
     supabase.from('ranch_crop_seasons').select('id, ranch_id, crop_id, season_id').eq('organization_id', organizationId),
@@ -51,8 +51,8 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
       location: item.location ?? undefined,
       createdAt: item.created_at,
     })),
-    sectors: ((sectorsResult.data ?? []) as DbSector[]).map((item): Sector => ({ id: item.id, ranchId: item.ranch_id, name: item.name, description: item.description ?? undefined, code: item.code ?? undefined, areaHa: item.surface_ha ?? null })),
-    tunnels: ((tunnelsResult.data ?? []) as DbTunnel[]).map((item): Tunnel => ({ id: item.id, sectorId: item.sector_id, name: item.name, description: item.description ?? undefined, code: item.code ?? undefined })),
+    sectors: ((sectorsResult.data ?? []) as DbSector[]).map((item): Sector => ({ id: item.id, ranchId: item.ranch_id, name: item.name, description: item.description ?? undefined, code: item.code ?? undefined, areaHa: item.surface_ha ?? null, number: item.number ?? null })),
+    tunnels: ((tunnelsResult.data ?? []) as DbTunnel[]).map((item): Tunnel => ({ id: item.id, sectorId: item.sector_id, name: item.name, description: item.description ?? undefined, code: item.code ?? undefined, number: item.number ?? null })),
     valves: ((valvesResult.data ?? []) as DbValve[]).map((item): Valve => ({
       id: item.id,
       sectorId: item.sector_id,
@@ -60,6 +60,7 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
       name: item.name,
       description: item.description ?? undefined,
       code: item.code ?? undefined,
+      number: item.number ?? null,
     })),
     crops: ((cropsResult.data ?? []) as DbCrop[]).map((item): Crop => ({ id: item.id, name: item.name, description: item.description ?? undefined })),
     seasons: ((seasonsResult.data ?? []) as DbSeason[]).map((item): Season => ({
@@ -105,29 +106,35 @@ export async function upsertRanchSupabase(organizationId: string, payload: Omit<
 export async function deleteRanchSupabase(id: string) { const { error } = await supabase.from('ranches').delete().eq('id', id); throwIfError(error) }
 
 export async function upsertSectorSupabase(organizationId: string, payload: Sector) {
-  const name = requireText(payload.name, 'El nombre del sector es requerido.')
   if (!payload.ranchId) throw new Error('Selecciona un rancho.')
-  const { error } = await supabase.from('sectors').upsert({ id: payload.id || undefined, organization_id: organizationId, ranch_id: payload.ranchId, name, code: payload.code?.trim() || null, description: payload.description?.trim() || null, surface_ha: payload.areaHa ?? null })
+  const num = payload.number
+  if (num == null || !Number.isInteger(num) || num <= 0) throw new Error('El número de sector es requerido y debe ser un entero positivo.')
+  const name = `Sector ${num}`
+  const { error } = await supabase.from('sectors').upsert({ id: payload.id || undefined, organization_id: organizationId, ranch_id: payload.ranchId, number: num, name, description: payload.description?.trim() || null, surface_ha: payload.areaHa ?? null })
   throwIfError(error)
 }
 
 export async function deleteSectorSupabase(id: string) { const { error } = await supabase.from('sectors').delete().eq('id', id); throwIfError(error) }
 
 export async function upsertTunnelSupabase(organizationId: string, payload: Tunnel) {
-  const name = requireText(payload.name, 'El nombre del túnel es requerido.')
   if (!payload.sectorId) throw new Error('Selecciona un sector.')
-  const { error } = await supabase.from('tunnels').upsert({ id: payload.id || undefined, organization_id: organizationId, sector_id: payload.sectorId, name, code: payload.code?.trim() || null, description: payload.description?.trim() || null })
+  const num = payload.number
+  if (num == null || !Number.isInteger(num) || num <= 0) throw new Error('El número de túnel es requerido y debe ser un entero positivo.')
+  const name = `Túnel ${num}`
+  const { error } = await supabase.from('tunnels').upsert({ id: payload.id || undefined, organization_id: organizationId, sector_id: payload.sectorId, number: num, name, description: payload.description?.trim() || null })
   throwIfError(error)
 }
 
 export async function deleteTunnelSupabase(id: string) { const { error } = await supabase.from('tunnels').delete().eq('id', id); throwIfError(error) }
 
 export async function upsertValveSupabase(organizationId: string, payload: Valve) {
-  const name = requireText(payload.name, 'El nombre de la válvula es requerido.')
   if (!payload.sectorId) throw new Error('Selecciona un sector.')
+  const num = payload.number
+  if (num == null || !Number.isInteger(num) || num <= 0) throw new Error('El número de válvula es requerido y debe ser un entero positivo.')
+  const name = `Válvula ${num}`
   const { error } = await supabase
     .from('valves')
-    .upsert({ id: payload.id || undefined, organization_id: organizationId, sector_id: payload.sectorId, tunnel_id: payload.tunnelId || null, name, code: payload.code?.trim() || null, description: payload.description?.trim() || null })
+    .upsert({ id: payload.id || undefined, organization_id: organizationId, sector_id: payload.sectorId, tunnel_id: payload.tunnelId || null, number: num, name, description: payload.description?.trim() || null })
   throwIfError(error)
 }
 
