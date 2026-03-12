@@ -77,6 +77,7 @@ export const SIDEBAR_NAV: SidebarNavSection[] = [
     items: [
       { label: 'Lista', to: '/recomendaciones/lista' },
       { label: 'Crear', to: '/recomendaciones/crear' },
+      { label: 'Ejecución', to: '/recomendaciones/ejecucion' },
     ],
   },
   {

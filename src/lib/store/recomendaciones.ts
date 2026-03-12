@@ -10,6 +10,8 @@ export type RecomendacionProducto = {
   gasto: string
   gastoTotal: string
   sector: string
+  dosePerHa?: number | null
+  doseUnit?: string | null
 }
 
 export type RecomendacionViaRiegoFila = {
@@ -74,6 +76,8 @@ type ProductRow = {
   gasto: Record<string, unknown> | null
   gasto_total: Record<string, unknown> | null
   notes: string | null
+  dose_per_ha: number | null
+  dose_unit: string | null
 }
 
 type IrrigationRow = {
@@ -128,6 +132,8 @@ const mapRecommendation = (row: RecommendationRow, products: ProductRow[], irrig
       gasto: toStr(item.gasto?.value),
       gastoTotal: toStr(item.gasto_total?.value),
       sector: item.notes ?? '',
+      dosePerHa: item.dose_per_ha ?? null,
+      doseUnit: item.dose_unit ?? null,
     })),
     dosisPorHa,
     riegoFilas: irrigationRows.map((item) => ({
@@ -204,7 +210,7 @@ export const getRecomendacionById = async (id: string) => {
   const [{ data: products, error: productsError }, { data: irrigationRows, error: irrigationError }] = await Promise.all([
     supabase
       .from('recommendation_products')
-      .select('product_name, active_ingredient, dosis, gasto, gasto_total, notes')
+      .select('product_name, active_ingredient, dosis, gasto, gasto_total, notes, dose_per_ha, dose_unit')
       .eq('recommendation_id', id)
       .order('sort_order', { ascending: true }),
     supabase
@@ -340,4 +346,76 @@ export const getRecommendationCalendar = async () => {
 
   if (error) throw new Error(error.message)
   return data ?? []
+}
+
+// --- Ejecución: dosis por ha y sectores ---
+
+export type ProductoConDosis = {
+  id: string
+  productName: string
+  activeIngredient: string | null
+  dosePerHa: number | null
+  doseUnit: string | null
+  sortOrder: number
+}
+
+export type SectorConArea = {
+  id: string
+  name: string
+  areaHa: number | null
+}
+
+type ProductConDosisRow = {
+  id: string
+  product_name: string
+  active_ingredient: string | null
+  dose_per_ha: number | null
+  dose_unit: string | null
+  sort_order: number
+}
+
+type SectorRow = {
+  id: string
+  name: string
+  surface_ha: number | null
+}
+
+export const getProductosConDosis = async (recommendationId: string): Promise<ProductoConDosis[]> => {
+  const { data, error } = await supabase
+    .from('recommendation_products')
+    .select('id, product_name, active_ingredient, dose_per_ha, dose_unit, sort_order')
+    .eq('recommendation_id', recommendationId)
+    .order('sort_order', { ascending: true })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as ProductConDosisRow[]).map((item) => ({
+    id: item.id,
+    productName: item.product_name,
+    activeIngredient: item.active_ingredient,
+    dosePerHa: item.dose_per_ha,
+    doseUnit: item.dose_unit,
+    sortOrder: item.sort_order,
+  }))
+}
+
+export const updateProductDosisSupabase = async (productId: string, dosePerHa: number | null, doseUnit: string | null) => {
+  const { error } = await supabase
+    .from('recommendation_products')
+    .update({ dose_per_ha: dosePerHa, dose_unit: doseUnit })
+    .eq('id', productId)
+  if (error) throw new Error(error.message)
+}
+
+export const getSectoresParaEjecucion = async (): Promise<SectorConArea[]> => {
+  const organizationId = await getProfileOrg()
+  const { data, error } = await supabase
+    .from('sectors')
+    .select('id, name, surface_ha')
+    .eq('organization_id', organizationId)
+    .order('name', { ascending: true })
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as SectorRow[]).map((item) => ({
+    id: item.id,
+    name: item.name,
+    areaHa: item.surface_ha,
+  }))
 }
