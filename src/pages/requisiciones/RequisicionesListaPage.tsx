@@ -100,12 +100,10 @@ export function RequisicionesListaPage() {
     navigate('/requisiciones/crear', {
       state: {
         prefill: {
-          producto: requisicion.producto,
-          cantidad: requisicion.cantidad,
-          unidad: requisicion.unidad,
           centroCosto: requisicion.centroCosto,
           prioridad: requisicion.prioridad,
           notas: requisicion.notas,
+          items: requisicion.items,
         },
       },
     })

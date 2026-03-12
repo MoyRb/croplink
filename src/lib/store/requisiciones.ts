@@ -242,11 +242,14 @@ const mapRequisitionItem = (item: RequisitionItemDb): RequisicionItem => {
 
 const mapRequisition = (row: RequisitionDb): Requisicion => {
   const firstItem = row.requisition_items?.[0]
+  const itemCount = row.requisition_items?.length ?? 0
+  const firstItemName = firstItem?.commercial_name ?? 'Sin productos'
+  const producto = itemCount > 1 ? `${firstItemName} +${itemCount - 1}` : firstItemName
   const cropSeason = resolveCropSeason(row.ranch_crop_seasons)
   return {
     id: row.folio || row.id,
     dbId: row.id,
-    producto: firstItem?.commercial_name ?? 'Sin productos',
+    producto,
     cantidad: Number(firstItem?.quantity ?? 0),
     unidad: (firstItem?.unit as Requisicion['unidad']) ?? 'pza',
     centroCosto: (row.cost_center as Requisicion['centroCosto']) ?? 'Operaciones',
