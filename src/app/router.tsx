@@ -45,6 +45,7 @@ import { RecomendacionesListaPage } from '../pages/recomendaciones/Recomendacion
 import { RecomendacionesCrearPage } from '../pages/recomendaciones/RecomendacionesCrearPage'
 import { RecomendacionesDetallePage } from '../pages/recomendaciones/RecomendacionesDetallePage'
 import { RecomendacionesEjecucionPage } from '../pages/recomendaciones/RecomendacionesEjecucionPage'
+import { RecomendacionesAsistentePage } from '../pages/recomendaciones/RecomendacionesAsistentePage'
 import { LandingPage } from '../pages/marketing/LandingPage'
 import { CheckoutPlaceholderPage } from '../pages/marketing/CheckoutPlaceholderPage'
 
@@ -173,6 +174,7 @@ export function AppRouter() {
         <Route path="/recomendaciones/lista" element={<RecomendacionesListaPage />} />
         <Route path="/recomendaciones/crear" element={<RecomendacionesCrearPage />} />
         <Route path="/recomendaciones/ejecucion" element={<RecomendacionesEjecucionPage />} />
+        <Route path="/recomendaciones/asistente" element={<RecomendacionesAsistentePage />} />
         <Route path="/recomendaciones/:id" element={<RecomendacionesDetallePage />} />
         <Route path="/configuracion" element={<Navigate to="/configuracion/estructura" replace />} />
         <Route path="/configuracion/estructura" element={<EstructuraPage />} />
