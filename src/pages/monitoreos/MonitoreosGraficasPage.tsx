@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
@@ -16,7 +16,14 @@ type ChartPoint = {
   value: number
   min: number | null
   max: number | null
+  rancho: string
+  sectorNames: string[]
+  totalPoints: number
+  totalPlantas: number
+  hallazgos: { tipo: string; count: number }[]
 }
+
+type ChartPointGeom = ChartPoint & { x: number; y: number }
 
 const METRIC_OPTIONS: MetricOption[] = [
   { value: 'densidad_promedio', label: 'Densidad promedio' },
@@ -43,6 +50,15 @@ const formatDate = (value: string) =>
     day: '2-digit',
     month: 'short',
     year: 'numeric',
+  })
+
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString('es-MX', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 
 const formatNumber = (value: number) =>
@@ -93,6 +109,8 @@ export function MonitoreosGraficasPage() {
   const [fechaInicio, setFechaInicio] = useState('')
   const [fechaFin, setFechaFin] = useState('')
   const [metric, setMetric] = useState('densidad_promedio')
+  const [hoveredPoint, setHoveredPoint] = useState<{ data: ChartPointGeom; cx: number; cy: number } | null>(null)
+  const chartWrapperRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -133,12 +151,31 @@ export function MonitoreosGraficasPage() {
 
         const threshold = session.config.umbrales.find((item) => item.metric === metric)
 
+        const allHallazgos = session.sectors.flatMap((s) =>
+          s.points.flatMap((p) => p.plantas.flatMap((pl) => pl.hallazgos)),
+        )
+        const hallazgoCounts: Record<string, number> = {}
+        for (const h of allHallazgos) {
+          hallazgoCounts[h.tipo] = (hallazgoCounts[h.tipo] ?? 0) + 1
+        }
+        const hallazgos = Object.entries(hallazgoCounts).map(([tipo, count]) => ({ tipo, count }))
+
+        const totalPlantas = session.sectors.reduce(
+          (sum, s) => sum + s.points.reduce((ps, p) => ps + p.plantas.length, 0),
+          0,
+        )
+
         return {
           id: session.id,
           createdAt: session.createdAt,
           value,
           min: threshold?.min ?? null,
           max: threshold?.max ?? null,
+          rancho: session.config.rancho,
+          sectorNames: session.sectors.map((s) => s.name),
+          totalPoints: session.sectors.reduce((sum, s) => sum + s.points.length, 0),
+          totalPlantas,
+          hallazgos,
         }
       })
       .filter((point): point is ChartPoint => point !== null)
@@ -170,7 +207,7 @@ export function MonitoreosGraficasPage() {
 
     const y = (value: number) => padding.top + ((maxValue - value) / yRange) * innerHeight
 
-    const points = chartPoints.map((point) => ({
+    const points: ChartPointGeom[] = chartPoints.map((point) => ({
       ...point,
       x: x(new Date(point.createdAt).getTime()),
       y: y(point.value),
@@ -180,8 +217,8 @@ export function MonitoreosGraficasPage() {
       .map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${point.y}`)
       .join(' ')
 
-    const minValues = points.filter((point): point is typeof point & { min: number } => point.min !== null)
-    const maxValues = points.filter((point): point is typeof point & { max: number } => point.max !== null)
+    const minValues = points.filter((point): point is ChartPointGeom & { min: number } => point.min !== null)
+    const maxValues = points.filter((point): point is ChartPointGeom & { max: number } => point.max !== null)
 
     const minPath = minValues.length > 0 ? minValues.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${y(point.min)}`).join(' ') : null
     const maxPath = maxValues.length > 0 ? maxValues.map((point, index) => `${index === 0 ? 'M' : 'L'}${point.x},${y(point.max)}`).join(' ') : null
@@ -196,6 +233,14 @@ export function MonitoreosGraficasPage() {
       maxPath,
     }
   }, [chartPoints])
+
+  const handlePointHover = (point: ChartPointGeom, clientX: number, clientY: number) => {
+    if (!chartWrapperRef.current) return
+    const rect = chartWrapperRef.current.getBoundingClientRect()
+    setHoveredPoint({ data: point, cx: clientX - rect.left, cy: clientY - rect.top })
+  }
+
+  const metricLabel = METRIC_OPTIONS.find((o) => o.value === metric)?.label ?? metric
 
   return (
     <div className="space-y-6">
@@ -243,44 +288,99 @@ export function MonitoreosGraficasPage() {
         {!chartGeometry ? (
           <p className="text-sm text-gray-500">Sin datos para los filtros seleccionados.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <svg viewBox={`0 0 ${chartGeometry.width} ${chartGeometry.height}`} className="min-w-[760px]">
-              <line
-                x1={chartGeometry.padding.left}
-                y1={chartGeometry.height - chartGeometry.padding.bottom}
-                x2={chartGeometry.width - chartGeometry.padding.right}
-                y2={chartGeometry.height - chartGeometry.padding.bottom}
-                stroke="#CBD5E1"
-              />
-              <line
-                x1={chartGeometry.padding.left}
-                y1={chartGeometry.padding.top}
-                x2={chartGeometry.padding.left}
-                y2={chartGeometry.height - chartGeometry.padding.bottom}
-                stroke="#CBD5E1"
-              />
+          <div ref={chartWrapperRef} className="relative">
+            <div className="overflow-x-auto">
+              <svg viewBox={`0 0 ${chartGeometry.width} ${chartGeometry.height}`} className="min-w-[760px]">
+                <line
+                  x1={chartGeometry.padding.left}
+                  y1={chartGeometry.height - chartGeometry.padding.bottom}
+                  x2={chartGeometry.width - chartGeometry.padding.right}
+                  y2={chartGeometry.height - chartGeometry.padding.bottom}
+                  stroke="#CBD5E1"
+                />
+                <line
+                  x1={chartGeometry.padding.left}
+                  y1={chartGeometry.padding.top}
+                  x2={chartGeometry.padding.left}
+                  y2={chartGeometry.height - chartGeometry.padding.bottom}
+                  stroke="#CBD5E1"
+                />
 
-              <path d={chartGeometry.linePath} fill="none" stroke="#0B6B2A" strokeWidth={2.5} />
+                <path d={chartGeometry.linePath} fill="none" stroke="#0B6B2A" strokeWidth={2.5} />
 
-              {chartGeometry.minPath ? (
-                <path d={chartGeometry.minPath} fill="none" stroke="#F59E0B" strokeDasharray="5 5" strokeWidth={2} />
-              ) : null}
+                {chartGeometry.minPath ? (
+                  <path d={chartGeometry.minPath} fill="none" stroke="#F59E0B" strokeDasharray="5 5" strokeWidth={2} />
+                ) : null}
 
-              {chartGeometry.maxPath ? (
-                <path d={chartGeometry.maxPath} fill="none" stroke="#EF4444" strokeDasharray="5 5" strokeWidth={2} />
-              ) : null}
+                {chartGeometry.maxPath ? (
+                  <path d={chartGeometry.maxPath} fill="none" stroke="#EF4444" strokeDasharray="5 5" strokeWidth={2} />
+                ) : null}
 
-              {chartGeometry.points.map((point) => (
-                <g key={point.id}>
-                  <circle cx={point.x} cy={point.y} r={4} fill="#0B6B2A">
-                    <title>{`${formatDate(point.createdAt)} · ${formatNumber(point.value)}`}</title>
-                  </circle>
-                  <text x={point.x} y={chartGeometry.height - 12} fontSize="11" textAnchor="middle" fill="#64748B">
-                    {new Date(point.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
-                  </text>
-                </g>
-              ))}
-            </svg>
+                {chartGeometry.points.map((point) => (
+                  <g key={point.id}>
+                    <circle
+                      cx={point.x}
+                      cy={point.y}
+                      r={5}
+                      fill={hoveredPoint?.data.id === point.id ? '#065F20' : '#0B6B2A'}
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={(e) => handlePointHover(point, e.clientX, e.clientY)}
+                      onMouseLeave={() => setHoveredPoint(null)}
+                      onTouchStart={(e) => {
+                        e.preventDefault()
+                        const touch = e.touches[0]
+                        if (hoveredPoint?.data.id === point.id) {
+                          setHoveredPoint(null)
+                        } else {
+                          handlePointHover(point, touch.clientX, touch.clientY)
+                        }
+                      }}
+                    />
+                    <text x={point.x} y={chartGeometry.height - 12} fontSize="11" textAnchor="middle" fill="#64748B">
+                      {new Date(point.createdAt).toLocaleDateString('es-MX', { day: '2-digit', month: '2-digit' })}
+                    </text>
+                  </g>
+                ))}
+              </svg>
+            </div>
+
+            {hoveredPoint ? (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: hoveredPoint.cx,
+                  top: hoveredPoint.cy,
+                  transform: 'translate(-50%, calc(-100% - 12px))',
+                  pointerEvents: 'none',
+                  zIndex: 10,
+                }}
+                className="min-w-[180px] max-w-[240px] rounded-lg border border-gray-200 bg-white p-3 shadow-lg text-xs"
+              >
+                <p className="font-semibold text-gray-900">{formatDateTime(hoveredPoint.data.createdAt)}</p>
+                {hoveredPoint.data.rancho ? (
+                  <p className="text-gray-600 mt-0.5">{hoveredPoint.data.rancho}</p>
+                ) : null}
+                {hoveredPoint.data.sectorNames.length > 0 ? (
+                  <p className="text-gray-500 mt-0.5">
+                    {hoveredPoint.data.sectorNames.join(', ')}
+                  </p>
+                ) : null}
+                <p className="text-gray-500 mt-0.5">
+                  {hoveredPoint.data.totalPoints} puntos · {hoveredPoint.data.totalPlantas} plantas
+                </p>
+                <p className="mt-1.5 font-semibold text-[#0B6B2A]">
+                  {metricLabel}: {formatNumber(hoveredPoint.data.value)}
+                </p>
+                {hoveredPoint.data.hallazgos.length > 0 ? (
+                  <div className="mt-1.5 border-t border-gray-100 pt-1.5 space-y-0.5">
+                    <p className="font-medium text-gray-600">Hallazgos:</p>
+                    {hoveredPoint.data.hallazgos.map((h) => (
+                      <p key={h.tipo} className="text-gray-500">· {h.tipo}: {h.count}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         )}
       </Card>
