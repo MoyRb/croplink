@@ -18,6 +18,14 @@ const formatDate = (value: string) => {
 
 const movementTypes: InventoryMovementType[] = ['IN', 'OUT', 'ADJUST', 'RETURN', 'WASTE']
 
+const MOVEMENT_TYPE_LABELS: Record<InventoryMovementType, string> = {
+  IN: 'Entrada',
+  OUT: 'Salida',
+  ADJUST: 'Ajuste',
+  RETURN: 'Devolución',
+  WASTE: 'Merma',
+}
+
 export function InventarioMovimientosPage() {
   const [typeFilter, setTypeFilter] = useState('')
   const [refTypeFilter, setRefTypeFilter] = useState('')
@@ -107,7 +115,7 @@ export function InventarioMovimientosPage() {
             <label className="text-sm">Tipo
               <select className="mt-1 w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2" value={type} onChange={(event) => setType(event.target.value as InventoryMovementType)}>
                 {movementTypes.map((movementType) => (
-                  <option key={movementType} value={movementType}>{movementType}</option>
+                  <option key={movementType} value={movementType}>{MOVEMENT_TYPE_LABELS[movementType]}</option>
                 ))}
               </select>
             </label>
@@ -158,7 +166,7 @@ export function InventarioMovimientosPage() {
             <select className="mt-1 w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
               <option value="">Todos</option>
               {movementTypes.map((movementType) => (
-                <option key={movementType} value={movementType}>{movementType}</option>
+                <option key={movementType} value={movementType}>{MOVEMENT_TYPE_LABELS[movementType]}</option>
               ))}
             </select>
           </label>
@@ -195,7 +203,7 @@ export function InventarioMovimientosPage() {
               {filteredMovements.map((movement) => (
                 <tr key={movement.id} className="border-b border-gray-100">
                   <td className="px-2 py-2">{formatDate(movement.date)}</td>
-                  <td className="px-2 py-2 font-semibold">{movement.type}</td>
+                  <td className="px-2 py-2 font-semibold">{MOVEMENT_TYPE_LABELS[movement.type]}</td>
                   <td className="px-2 py-2">{itemsById.get(movement.itemId) ?? movement.itemId}</td>
                   <td className="px-2 py-2">{movement.qty} {movement.unit}</td>
                   <td className="px-2 py-2">{movement.refType && movement.refId ? `${movement.refType} · ${movement.refId}` : '—'}</td>
