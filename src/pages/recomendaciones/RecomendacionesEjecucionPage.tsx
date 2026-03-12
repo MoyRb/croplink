@@ -18,6 +18,8 @@ type ProductoEditable = ProductoConDosis & {
   doseUnitInput: string
 }
 
+const round3 = (n: number) => parseFloat(n.toFixed(3))
+
 export function RecomendacionesEjecucionPage() {
   const [recomendaciones, setRecomendaciones] = useState<Recomendacion[]>([])
   const [sectores, setSectores] = useState<SectorConArea[]>([])
@@ -29,6 +31,10 @@ export function RecomendacionesEjecucionPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [savedMsg, setSavedMsg] = useState('')
+
+  // Tambo inputs (UI-only, not persisted)
+  const [capTamboInput, setCapTamboInput] = useState('200')
+  const [aguaPorHaInput, setAguaPorHaInput] = useState('200')
 
   useEffect(() => {
     let cancelled = false
@@ -87,6 +93,22 @@ export function RecomendacionesEjecucionPage() {
   const selectedSector = sectores.find((s) => s.id === selectedSectorId) ?? null
   const areaHa = selectedSector?.areaHa ?? null
 
+  // Tambo derived calculations
+  const capTambo = parseFloat(capTamboInput)
+  const aguaPorHa = parseFloat(aguaPorHaInput)
+  const tamboValid =
+    areaHa !== null && areaHa > 0 &&
+    !isNaN(capTambo) && capTambo > 0 &&
+    !isNaN(aguaPorHa) && aguaPorHa > 0
+
+  const aguaTotal = tamboValid ? round3(areaHa! * aguaPorHa) : null
+  const numTambosCompletos = tamboValid && aguaTotal !== null ? Math.floor(aguaTotal / capTambo) : null
+  // Use subtraction (not %) to avoid floating-point drift
+  const lastTamboL =
+    tamboValid && aguaTotal !== null && numTambosCompletos !== null
+      ? round3(aguaTotal - numTambosCompletos * capTambo)
+      : null
+
   const handleSave = async () => {
     try {
       setSaving(true)
@@ -113,11 +135,12 @@ export function RecomendacionesEjecucionPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Ejecución</h1>
-        <p className="text-sm text-gray-500">Calcula el consumo total de productos según la superficie del sector.</p>
+        <p className="text-sm text-gray-500">Calcula consumo total de productos y distribución por tambo.</p>
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
+      {/* Selectors */}
       {loading ? (
         <p className="text-sm text-gray-500">Cargando...</p>
       ) : (
@@ -154,7 +177,7 @@ export function RecomendacionesEjecucionPage() {
               </select>
               {selectedSector !== null && areaHa === null ? (
                 <p className="mt-1 text-xs text-amber-600">
-                  Este sector no tiene superficie registrada. Ingrésala en Configuración → Sectores.
+                  Este sector no tiene superficie. Ingrésala en Configuración → Sectores.
                 </p>
               ) : null}
               {selectedSector !== null && areaHa !== null ? (
@@ -164,6 +187,62 @@ export function RecomendacionesEjecucionPage() {
           </div>
         </Card>
       )}
+
+      {/* Tambo configuration */}
+      {!loading ? (
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Configuración de tambo</h2>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Capacidad de tambo (L)</label>
+              <Input
+                type="number"
+                min="1"
+                step="any"
+                placeholder="200"
+                value={capTamboInput}
+                onChange={(e) => setCapTamboInput(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">Agua por hectárea (L/ha)</label>
+              <Input
+                type="number"
+                min="1"
+                step="any"
+                placeholder="200"
+                value={aguaPorHaInput}
+                onChange={(e) => setAguaPorHaInput(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {selectedSectorId !== '' && areaHa !== null && !tamboValid ? (
+            <p className="mt-3 text-xs text-amber-600">
+              Ingresa capacidad de tambo y litros/ha válidos para calcular la distribución.
+            </p>
+          ) : null}
+
+          {tamboValid && aguaTotal !== null && numTambosCompletos !== null && lastTamboL !== null ? (
+            <div className="mt-4 grid grid-cols-3 gap-3">
+              <div className="rounded-xl border border-[#E5E7EB] px-4 py-3">
+                <p className="text-xs text-gray-500">Agua total</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">{aguaTotal} L</p>
+              </div>
+              <div className="rounded-xl border border-[#E5E7EB] px-4 py-3">
+                <p className="text-xs text-gray-500">Tambos completos</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">{numTambosCompletos}</p>
+              </div>
+              <div className="rounded-xl border border-[#E5E7EB] px-4 py-3">
+                <p className="text-xs text-gray-500">Último tambo</p>
+                <p className="mt-1 text-lg font-semibold text-gray-900">
+                  {lastTamboL > 0 ? `${lastTamboL} L` : '—'}
+                </p>
+              </div>
+            </div>
+          ) : null}
+        </Card>
+      ) : null}
 
       {loadingProductos ? <p className="text-sm text-gray-500">Cargando productos...</p> : null}
 
@@ -195,16 +274,37 @@ export function RecomendacionesEjecucionPage() {
                   <th className="pb-2 pr-4 font-medium">Producto</th>
                   <th className="pb-2 pr-4 font-medium">Dosis / ha</th>
                   <th className="pb-2 pr-4 font-medium">Unidad</th>
-                  <th className="pb-2 pr-4 font-medium">Superficie (ha)</th>
-                  <th className="pb-2 font-medium">Consumo total</th>
+                  <th className="pb-2 pr-4 font-medium">Total</th>
+                  {tamboValid && numTambosCompletos !== null && numTambosCompletos > 0 ? (
+                    <th className="pb-2 pr-4 font-medium">Por tambo ({capTambo} L)</th>
+                  ) : null}
+                  {tamboValid && lastTamboL !== null && lastTamboL > 0 ? (
+                    <th className="pb-2 font-medium">Último tambo ({lastTamboL} L)</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
                 {productos.map((p, idx) => {
                   const doseNum = Number(p.dosePerHaInput)
                   const hasValidDose = p.dosePerHaInput.trim() !== '' && !isNaN(doseNum) && doseNum >= 0
-                  const total = areaHa !== null && hasValidDose ? parseFloat((doseNum * areaHa).toFixed(4)) : null
+                  const prodTotal =
+                    areaHa !== null && hasValidDose ? round3(doseNum * areaHa) : null
+                  const prodFull =
+                    tamboValid &&
+                    prodTotal !== null &&
+                    aguaTotal !== null && aguaTotal > 0 &&
+                    numTambosCompletos !== null && numTambosCompletos > 0
+                      ? round3(prodTotal * (capTambo / aguaTotal))
+                      : null
+                  const prodLast =
+                    tamboValid &&
+                    prodTotal !== null &&
+                    aguaTotal !== null && aguaTotal > 0 &&
+                    lastTamboL !== null && lastTamboL > 0
+                      ? round3(prodTotal * (lastTamboL / aguaTotal))
+                      : null
                   const unit = p.doseUnitInput.trim() || 'unidad'
+
                   return (
                     <tr key={p.id} className="border-b border-[#F3F4F6] last:border-0">
                       <td className="py-2 pr-4 font-medium">{p.productName}</td>
@@ -235,10 +335,19 @@ export function RecomendacionesEjecucionPage() {
                           }
                         />
                       </td>
-                      <td className="py-2 pr-4 text-gray-500">{areaHa ?? '—'}</td>
-                      <td className="py-2 font-semibold text-gray-900">
-                        {total !== null ? `${total} ${unit}` : '—'}
+                      <td className="py-2 pr-4 font-semibold text-gray-900">
+                        {prodTotal !== null ? `${prodTotal} ${unit}` : '—'}
                       </td>
+                      {tamboValid && numTambosCompletos !== null && numTambosCompletos > 0 ? (
+                        <td className="py-2 pr-4 text-gray-700">
+                          {prodFull !== null ? `${prodFull} ${unit}` : '—'}
+                        </td>
+                      ) : null}
+                      {tamboValid && lastTamboL !== null && lastTamboL > 0 ? (
+                        <td className="py-2 text-gray-700">
+                          {prodLast !== null ? `${prodLast} ${unit}` : '—'}
+                        </td>
+                      ) : null}
                     </tr>
                   )
                 })}
