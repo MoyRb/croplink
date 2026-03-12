@@ -127,6 +127,40 @@ export async function upsertTunnelSupabase(organizationId: string, payload: Tunn
 
 export async function deleteTunnelSupabase(id: string) { const { error } = await supabase.from('tunnels').delete().eq('id', id); throwIfError(error) }
 
+export async function bulkInsertTunnelsSupabase(
+  organizationId: string,
+  sectorId: string,
+  fromNumber: number,
+  toNumber: number,
+  description?: string,
+): Promise<{ created: number; skipped: number }> {
+  const { data: existing, error: fetchError } = await supabase
+    .from('tunnels')
+    .select('number')
+    .eq('organization_id', organizationId)
+    .eq('sector_id', sectorId)
+  throwIfError(fetchError)
+
+  const existingNumbers = new Set(
+    (existing ?? []).map((row: { number: number | null }) => row.number).filter((n): n is number => n != null),
+  )
+
+  const rows = []
+  for (let n = fromNumber; n <= toNumber; n++) {
+    if (!existingNumbers.has(n)) {
+      rows.push({ organization_id: organizationId, sector_id: sectorId, number: n, name: `Túnel ${n}`, description: description?.trim() || null })
+    }
+  }
+
+  const skipped = toNumber - fromNumber + 1 - rows.length
+  if (rows.length > 0) {
+    const { error } = await supabase.from('tunnels').insert(rows)
+    throwIfError(error)
+  }
+
+  return { created: rows.length, skipped }
+}
+
 export async function upsertValveSupabase(organizationId: string, payload: Valve) {
   if (!payload.sectorId) throw new Error('Selecciona un sector.')
   const num = payload.number
