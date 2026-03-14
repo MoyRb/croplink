@@ -93,12 +93,12 @@ export function LandingPage() {
             >
               Entrar
             </Link>
-            <Link
-              to="/checkout"
+            <a
+              href="mailto:contacto@croplink.com.mx"
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm shadow-emerald-300 transition hover:bg-emerald-500"
             >
-              Crear cuenta
-            </Link>
+              Solicitar acceso
+            </a>
           </div>
         </div>
       </header>
@@ -117,12 +117,12 @@ export function LandingPage() {
               técnicas en una sola plataforma para que tu equipo ejecute con menos fricción y más precisión.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                to="/checkout"
+              <a
+                href="mailto:contacto@croplink.com.mx"
                 className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-200 transition hover:bg-emerald-500"
               >
-                Crear cuenta
-              </Link>
+                Solicitar acceso
+              </a>
               <Link
                 to="/login"
                 className="rounded-xl border border-slate-300 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-emerald-300 hover:text-emerald-700"
@@ -203,12 +203,12 @@ export function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Link
-                  to="/checkout"
+                <a
+                  href="mailto:contacto@croplink.com.mx"
                   className="mt-7 inline-flex w-full justify-center rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                 >
                   {plan.cta}
-                </Link>
+                </a>
               </article>
             ))}
           </div>
