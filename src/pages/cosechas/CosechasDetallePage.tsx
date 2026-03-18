@@ -84,6 +84,22 @@ export function CosechasDetallePage() {
     [catalog.seasons, cosecha?.seasonId, selectedRanchCropSeason?.seasonId],
   )
 
+  const selectedRanch = useMemo(
+    () => catalog.ranches.find((item) => item.id === form.ranchoId),
+    [catalog.ranches, form.ranchoId],
+  )
+
+  const selectedSector = useMemo(
+    () => sectores.find((item) => item.id === form.sectorId),
+    [sectores, form.sectorId],
+  )
+
+  const cultivoLabel = selectedCrop?.name ?? cosecha?.cultivo ?? 'Sin cultivo'
+  const variedadLabel = selectedRanchCropSeason?.variety?.trim() || cosecha?.variedad || 'Sin variedad'
+  const temporadaLabel = selectedSeason?.name ?? cosecha?.temporada ?? 'Sin temporada'
+  const ranchoLabel = selectedRanch?.name ?? cosecha?.ranchoNombre ?? 'Sin rancho'
+  const sectorLabel = selectedSector?.name ?? cosecha?.sectorNombre ?? 'Sin sector'
+
   const hasLegacyPayrollLinks = useMemo(
     () => Boolean(cosecha && (cosecha.cuadrilla.length > 0 || cosecha.workLogIds.length > 0)),
     [cosecha],
@@ -92,7 +108,7 @@ export function CosechasDetallePage() {
   const handleSave = async () => {
     if (!cosecha) return
     if (!form.fecha || !form.ranchoId || !form.ranchCropSeasonId || !form.manejoAgronomico.trim()) {
-      setError('Completa fecha, rancho, variedad y manejo agronómico.')
+      setError('Completa fecha, rancho, variedad y manejo.')
       return
     }
 
@@ -189,47 +205,76 @@ export function CosechasDetallePage() {
       <Card>
         {isEditing ? (
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              <Input type="date" value={form.fecha} onChange={(event) => setForm((prev) => ({ ...prev, fecha: event.target.value }))} />
-              <select
-                className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
-                value={form.ranchoId}
-                onChange={(event) => setForm((prev) => ({ ...prev, ranchoId: event.target.value, sectorId: '', ranchCropSeasonId: '' }))}
-              >
-                <option value="">Rancho</option>
-                {catalog.ranches.map((ranch) => <option key={ranch.id} value={ranch.id}>{ranch.name}</option>)}
-              </select>
-              <select
-                className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
-                value={form.ranchCropSeasonId}
-                onChange={(event) => setForm((prev) => ({ ...prev, ranchCropSeasonId: event.target.value }))}
-              >
-                <option value="">Variedad</option>
-                {ranchCropSeasonOptions.map((assignment) => (
-                  <option key={assignment.id} value={assignment.id}>
-                    {(assignment.variety?.trim() || 'Sin variedad')} · {catalog.crops.find((crop) => crop.id === assignment.cropId)?.name || 'Cultivo'} · {catalog.seasons.find((season) => season.id === assignment.seasonId)?.name || 'Temporada'}
-                  </option>
-                ))}
-              </select>
-              <Input
-                placeholder="Manejo agronómico"
-                value={form.manejoAgronomico}
-                onChange={(event) => setForm((prev) => ({ ...prev, manejoAgronomico: event.target.value }))}
-              />
-              <select
-                className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
-                value={form.sectorId}
-                onChange={(event) => setForm((prev) => ({ ...prev, sectorId: event.target.value }))}
-              >
-                <option value="">Sector (opcional)</option>
-                {sectores.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
-              </select>
-              <Input className="xl:col-span-2" placeholder="Notas" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Fecha</span>
+                <Input type="date" value={form.fecha} onChange={(event) => setForm((prev) => ({ ...prev, fecha: event.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Rancho</span>
+                <select
+                  className="w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+                  value={form.ranchoId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, ranchoId: event.target.value, sectorId: '', ranchCropSeasonId: '' }))}
+                >
+                  <option value="">Selecciona rancho</option>
+                  {catalog.ranches.map((ranch) => <option key={ranch.id} value={ranch.id}>{ranch.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Cultivo</span>
+                <div className="rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-2 text-sm text-gray-700">{cultivoLabel}</div>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Variedad</span>
+                <select
+                  className="w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+                  value={form.ranchCropSeasonId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, ranchCropSeasonId: event.target.value }))}
+                >
+                  <option value="">Selecciona variedad</option>
+                  {ranchCropSeasonOptions.map((assignment) => (
+                    <option key={assignment.id} value={assignment.id}>
+                      {assignment.variety?.trim() || 'Sin variedad'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Manejo</span>
+                <Input
+                  placeholder="Manejo agronómico"
+                  value={form.manejoAgronomico}
+                  onChange={(event) => setForm((prev) => ({ ...prev, manejoAgronomico: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Sector</span>
+                <select
+                  className="w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+                  value={form.sectorId}
+                  onChange={(event) => setForm((prev) => ({ ...prev, sectorId: event.target.value }))}
+                >
+                  <option value="">Sin sector</option>
+                  {sectores.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <span className="text-sm font-medium text-gray-700">Temporada</span>
+                <div className="rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-2 text-sm text-gray-700">{temporadaLabel}</div>
+              </div>
             </div>
-            <div className="grid gap-3 rounded-2xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] p-4 text-sm text-gray-600 md:grid-cols-3">
-              <p><span className="font-medium text-gray-900">Cultivo:</span> {selectedCrop?.name ?? '—'}</p>
-              <p><span className="font-medium text-gray-900">Temporada:</span> {selectedSeason?.name ?? '—'}</p>
-              <p><span className="font-medium text-gray-900">Variedad:</span> {selectedRanchCropSeason?.variety?.trim() || '—'}</p>
+
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Notas</span>
+              <Input placeholder="Notas" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
+            </div>
+
+            <div className="rounded-2xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] p-4 text-sm text-gray-600">
+              <p>
+                <span className="font-medium text-gray-900">Resumen del encabezado:</span> {form.fecha || 'Sin fecha'} · {ranchoLabel} · {cultivoLabel} ·{' '}
+                {variedadLabel} · {form.manejoAgronomico.trim() || 'Sin manejo'} · {sectorLabel} · {temporadaLabel}
+              </p>
             </div>
             <CosechaRendimientoTable rows={detalle} onChange={setDetalle} />
             <div className="flex justify-end gap-2">
@@ -238,19 +283,24 @@ export function CosechasDetallePage() {
             </div>
           </div>
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 text-sm">
-            <p><span className="text-gray-500">Fecha:</span> {cosecha.fecha}</p>
-            <p><span className="text-gray-500">Rancho:</span> {cosecha.ranchoNombre}</p>
-            <p><span className="text-gray-500">Variedad:</span> {cosecha.variedad}</p>
-            <p><span className="text-gray-500">Cultivo:</span> {cosecha.cultivo}</p>
-            <p><span className="text-gray-500">Temporada:</span> {cosecha.temporada}</p>
-            <p><span className="text-gray-500">Manejo agronómico:</span> {cosecha.manejoAgronomico}</p>
-            <p><span className="text-gray-500">Sector:</span> {cosecha.sectorNombre}</p>
-            <p><span className="text-gray-500">Total cajas:</span> {formatNumber(cosecha.totalCajas)}</p>
-            <p><span className="text-gray-500">Total kg proceso:</span> {formatNumber(cosecha.totalKgProceso)}</p>
-            <p><span className="text-gray-500">Total rechazos:</span> {formatNumber(cosecha.totalRechazos)}</p>
-            <p><span className="text-gray-500">Rendimiento promedio:</span> {formatNumber(cosecha.promedioRendimiento)}%</p>
-            <p className="md:col-span-2 xl:col-span-3"><span className="text-gray-500">Notas:</span> {cosecha.notes || 'Sin notas.'}</p>
+          <div className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 text-sm">
+              <p><span className="text-gray-500">Fecha:</span> {cosecha.fecha}</p>
+              <p><span className="text-gray-500">Rancho:</span> {cosecha.ranchoNombre}</p>
+              <p><span className="text-gray-500">Cultivo:</span> {cosecha.cultivo}</p>
+              <p><span className="text-gray-500">Variedad:</span> {cosecha.variedad}</p>
+              <p><span className="text-gray-500">Manejo:</span> {cosecha.manejoAgronomico}</p>
+              <p><span className="text-gray-500">Sector:</span> {cosecha.sectorNombre}</p>
+              <p><span className="text-gray-500">Temporada:</span> {cosecha.temporada}</p>
+            </div>
+
+            <div className="grid gap-3 border-t border-[#E5E7EB] pt-4 text-sm md:grid-cols-2 xl:grid-cols-4">
+              <p><span className="text-gray-500">Total cajas:</span> {formatNumber(cosecha.totalCajas)}</p>
+              <p><span className="text-gray-500">Total kg proceso:</span> {formatNumber(cosecha.totalKgProceso)}</p>
+              <p><span className="text-gray-500">Total rechazos:</span> {formatNumber(cosecha.totalRechazos)}</p>
+              <p><span className="text-gray-500">Rendimiento promedio:</span> {formatNumber(cosecha.promedioRendimiento)}%</p>
+              <p className="md:col-span-2 xl:col-span-4"><span className="text-gray-500">Notas:</span> {cosecha.notes || 'Sin notas.'}</p>
+            </div>
           </div>
         )}
       </Card>

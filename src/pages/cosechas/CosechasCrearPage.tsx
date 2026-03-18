@@ -49,6 +49,10 @@ export function CosechasCrearPage() {
     [catalog.seasons, selectedRanchCropSeason?.seasonId],
   )
 
+  const cultivoLabel = selectedCrop?.name ?? 'Se completa al seleccionar variedad'
+  const variedadLabel = selectedRanchCropSeason?.variety?.trim() || 'Selecciona variedad'
+  const temporadaLabel = selectedSeason?.name ?? 'Se completa al seleccionar variedad'
+
   const handleRanchChange = (ranchoId: string) => {
     const nextOptions = catalog.ranchCropSeasons.filter((item) => item.ranchId === ranchoId)
     setForm((prev) => ({
@@ -63,7 +67,7 @@ export function CosechasCrearPage() {
     setFormError('')
 
     if (!form.fecha || !form.ranchoId || !form.ranchCropSeasonId || !form.manejoAgronomico.trim()) {
-      setFormError('Completa fecha, rancho, variedad y manejo agronómico.')
+      setFormError('Completa fecha, rancho, variedad y manejo.')
       return
     }
 
@@ -125,50 +129,80 @@ export function CosechasCrearPage() {
             <p className="text-sm text-gray-500">Define el contexto agrícola antes de capturar el rendimiento.</p>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            <Input type="date" value={form.fecha} onChange={(event) => setForm((prev) => ({ ...prev, fecha: event.target.value }))} />
-            <select
-              className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
-              value={form.ranchoId}
-              onChange={(event) => handleRanchChange(event.target.value)}
-            >
-              <option value="">Rancho</option>
-              {catalog.ranches.map((ranch) => <option key={ranch.id} value={ranch.id}>{ranch.name}</option>)}
-            </select>
-            <select
-              className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
-              value={form.ranchCropSeasonId}
-              onChange={(event) => setForm((prev) => ({ ...prev, ranchCropSeasonId: event.target.value }))}
-              disabled={!form.ranchoId}
-            >
-              <option value="">Variedad</option>
-              {ranchCropSeasonOptions.map((assignment) => (
-                <option key={assignment.id} value={assignment.id}>
-                  {(assignment.variety?.trim() || 'Sin variedad')} · {catalog.crops.find((crop) => crop.id === assignment.cropId)?.name || 'Cultivo'} · {catalog.seasons.find((season) => season.id === assignment.seasonId)?.name || 'Temporada'}
-                </option>
-              ))}
-            </select>
-            <Input
-              placeholder="Manejo agronómico"
-              value={form.manejoAgronomico}
-              onChange={(event) => setForm((prev) => ({ ...prev, manejoAgronomico: event.target.value }))}
-            />
-            <select
-              className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
-              value={form.sectorId}
-              onChange={(event) => setForm((prev) => ({ ...prev, sectorId: event.target.value }))}
-              disabled={!form.ranchoId}
-            >
-              <option value="">Sector (opcional)</option>
-              {sectores.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
-            </select>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Fecha</span>
+              <Input type="date" value={form.fecha} onChange={(event) => setForm((prev) => ({ ...prev, fecha: event.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Rancho</span>
+              <select
+                className="w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+                value={form.ranchoId}
+                onChange={(event) => handleRanchChange(event.target.value)}
+              >
+                <option value="">Selecciona rancho</option>
+                {catalog.ranches.map((ranch) => <option key={ranch.id} value={ranch.id}>{ranch.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Cultivo</span>
+              <div className="rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-2 text-sm text-gray-700">{cultivoLabel}</div>
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Variedad</span>
+              <select
+                className="w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+                value={form.ranchCropSeasonId}
+                onChange={(event) => setForm((prev) => ({ ...prev, ranchCropSeasonId: event.target.value }))}
+                disabled={!form.ranchoId}
+              >
+                <option value="">Selecciona variedad</option>
+                {ranchCropSeasonOptions.map((assignment) => (
+                  <option key={assignment.id} value={assignment.id}>
+                    {assignment.variety?.trim() || 'Sin variedad'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Manejo</span>
+              <Input
+                placeholder="Manejo agronómico"
+                value={form.manejoAgronomico}
+                onChange={(event) => setForm((prev) => ({ ...prev, manejoAgronomico: event.target.value }))}
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Sector</span>
+              <select
+                className="w-full rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+                value={form.sectorId}
+                onChange={(event) => setForm((prev) => ({ ...prev, sectorId: event.target.value }))}
+                disabled={!form.ranchoId}
+              >
+                <option value="">Sin sector</option>
+                {sectores.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium text-gray-700">Temporada</span>
+              <div className="rounded-full border border-[#E5E7EB] bg-[#F9FAFB] px-4 py-2 text-sm text-gray-700">{temporadaLabel}</div>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-gray-700">Notas</span>
             <Input placeholder="Notas (opcional)" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
           </div>
 
-          <div className="grid gap-3 rounded-2xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] p-4 text-sm text-gray-600 md:grid-cols-3">
-            <p><span className="font-medium text-gray-900">Cultivo:</span> {selectedCrop?.name ?? 'Selecciona variedad'}</p>
-            <p><span className="font-medium text-gray-900">Temporada:</span> {selectedSeason?.name ?? 'Selecciona variedad'}</p>
-            <p><span className="font-medium text-gray-900">Variedad:</span> {selectedRanchCropSeason?.variety?.trim() || 'Selecciona variedad'}</p>
+          <div className="rounded-2xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] p-4 text-sm text-gray-600">
+            <p>
+              <span className="font-medium text-gray-900">Resumen del encabezado:</span>{' '}
+              {form.fecha || 'Sin fecha'} · {catalog.ranches.find((ranch) => ranch.id === form.ranchoId)?.name || 'Sin rancho'} · {cultivoLabel} ·{' '}
+              {variedadLabel} · {form.manejoAgronomico.trim() || 'Sin manejo'} · {sectores.find((sector) => sector.id === form.sectorId)?.name || 'Sin sector'} ·{' '}
+              {temporadaLabel}
+            </p>
           </div>
         </div>
       </Card>
