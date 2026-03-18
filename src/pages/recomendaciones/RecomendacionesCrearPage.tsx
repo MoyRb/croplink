@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
+import { resolveCatalogProductByName } from '../../lib/plaguicidas'
 import { downloadRecomendacionExcel } from '../../lib/recomendaciones/excel'
 import { createRecomendacion, type Recomendacion, type RecommendationMode } from '../../lib/store/recomendaciones'
 
@@ -14,6 +15,10 @@ const createProducto = () => ({
   gasto: '',
   gastoTotal: '',
   sector: '',
+  dosePerHa: null as number | null,
+  doseUnit: '',
+  intervalo: null as string | null,
+  reentrada: null as string | null,
 })
 
 const createRiegoFila = () => ({
@@ -56,6 +61,7 @@ export function RecomendacionesCrearPage() {
   const [form, setForm] = useState(baseForm)
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [catalogHints, setCatalogHints] = useState<Record<number, string>>({})
 
   const handleModeChange = (mode: RecommendationMode) => {
     setForm((prev) => ({ ...prev, modo: mode }))
@@ -84,6 +90,48 @@ export function RecomendacionesCrearPage() {
       await downloadRecomendacionExcel({ ...form, id: 'preview', createdAt: new Date().toISOString() })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo generar el Excel.')
+    }
+  }
+
+  const updateProducto = (index: number, updater: (current: Recomendacion['productos'][number]) => Recomendacion['productos'][number]) => {
+    setForm((prev) => ({
+      ...prev,
+      productos: prev.productos.map((item, itemIndex) => (itemIndex === index ? updater(item) : item)),
+    }))
+  }
+
+  const handleAutofillFromCatalog = async (index: number) => {
+    const current = form.productos[index]
+    if (!current) return
+
+    try {
+      const match = await resolveCatalogProductByName(current.producto)
+      if (!match) {
+        setCatalogHints((prev) => ({ ...prev, [index]: '' }))
+        return
+      }
+
+      updateProducto(index, (item) => ({
+        ...item,
+        ingredienteActivo: item.ingredienteActivo.trim() || match.activeIngredient,
+        dosis: item.dosis.trim() || match.doseLabel,
+        dosePerHa: item.dosePerHa ?? match.dosePerHa,
+        doseUnit: item.doseUnit?.trim() || match.doseUnit || '',
+        intervalo: item.intervalo ?? match.intervalo,
+        reentrada: item.reentrada ?? match.reentrada,
+      }))
+
+      const hintParts: string[] = []
+      if (match.dosePerHa !== null) hintParts.push(`Dosis/ha: ${match.dosePerHa}`)
+      if (match.doseUnit) hintParts.push(`Unidad: ${match.doseUnit}`)
+      if (match.intervalo) hintParts.push(`Intervalo: ${match.intervalo}`)
+      if (match.reentrada) hintParts.push(`Reentrada: ${match.reentrada}`)
+      setCatalogHints((prev) => ({
+        ...prev,
+        [index]: hintParts.length > 0 ? `Autocompletado desde catálogo. ${hintParts.join(' · ')}` : 'Producto reconocido en catálogo.',
+      }))
+    } catch {
+      setCatalogHints((prev) => ({ ...prev, [index]: '' }))
     }
   }
 
@@ -132,13 +180,35 @@ export function RecomendacionesCrearPage() {
         </div>
         <div className="mt-4 space-y-3">
           {form.productos.map((item, index) => (
-            <div key={index} className="grid gap-2 md:grid-cols-6">
-              <Input placeholder="Producto" value={item.producto} onChange={(event) => setForm((prev) => ({ ...prev, productos: prev.productos.map((p, i) => i === index ? { ...p, producto: event.target.value } : p) }))} />
-              <Input placeholder="I. activo" value={item.ingredienteActivo} onChange={(event) => setForm((prev) => ({ ...prev, productos: prev.productos.map((p, i) => i === index ? { ...p, ingredienteActivo: event.target.value } : p) }))} />
-              <Input placeholder="Dosis" value={item.dosis} onChange={(event) => setForm((prev) => ({ ...prev, productos: prev.productos.map((p, i) => i === index ? { ...p, dosis: event.target.value } : p) }))} />
-              <Input placeholder="Gasto" value={item.gasto} onChange={(event) => setForm((prev) => ({ ...prev, productos: prev.productos.map((p, i) => i === index ? { ...p, gasto: event.target.value } : p) }))} />
-              <Input placeholder="Gasto total" value={item.gastoTotal} onChange={(event) => setForm((prev) => ({ ...prev, productos: prev.productos.map((p, i) => i === index ? { ...p, gastoTotal: event.target.value } : p) }))} />
-              <Input placeholder="Sector" value={item.sector} onChange={(event) => setForm((prev) => ({ ...prev, productos: prev.productos.map((p, i) => i === index ? { ...p, sector: event.target.value } : p) }))} />
+            <div key={index} className="space-y-2 rounded-xl border border-[#E5E7EB] p-3">
+              <div className="grid gap-2 md:grid-cols-8">
+                <Input
+                  placeholder="Producto"
+                  value={item.producto}
+                  onBlur={() => void handleAutofillFromCatalog(index)}
+                  onChange={(event) => updateProducto(index, (current) => ({ ...current, producto: event.target.value }))}
+                />
+                <Input placeholder="I. activo" value={item.ingredienteActivo} onChange={(event) => updateProducto(index, (current) => ({ ...current, ingredienteActivo: event.target.value }))} />
+                <Input placeholder="Dosis etiqueta" value={item.dosis} onChange={(event) => updateProducto(index, (current) => ({ ...current, dosis: event.target.value }))} />
+                <Input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="Dosis / ha"
+                  value={item.dosePerHa ?? ''}
+                  onChange={(event) =>
+                    updateProducto(index, (current) => ({
+                      ...current,
+                      dosePerHa: event.target.value.trim() === '' ? null : Number(event.target.value),
+                    }))
+                  }
+                />
+                <Input placeholder="Unidad" value={item.doseUnit ?? ''} onChange={(event) => updateProducto(index, (current) => ({ ...current, doseUnit: event.target.value }))} />
+                <Input placeholder="Gasto" value={item.gasto} onChange={(event) => updateProducto(index, (current) => ({ ...current, gasto: event.target.value }))} />
+                <Input placeholder="Gasto total" value={item.gastoTotal} onChange={(event) => updateProducto(index, (current) => ({ ...current, gastoTotal: event.target.value }))} />
+                <Input placeholder="Sector" value={item.sector} onChange={(event) => updateProducto(index, (current) => ({ ...current, sector: event.target.value }))} />
+              </div>
+              {catalogHints[index] ? <p className="text-xs text-slate-500">{catalogHints[index]}</p> : null}
             </div>
           ))}
         </div>

@@ -10,6 +10,7 @@ import {
   getRecommendations,
   loadTargets,
   loadUseCases,
+  resolveCatalogDoseFromUseCase,
   searchTargets,
   type SearchIndex,
   type Target,
@@ -34,6 +35,11 @@ type ProductoSeleccionado = {
   comercialName: string
   activeIngredient: string
   dosis: string
+  dosePerHa: number | null
+  doseUnit: string | null
+  intervalo: string | null
+  reentrada: string | null
+  doseStrategy: string
   targetCommon: string
   resistanceClass: string
 }
@@ -154,6 +160,7 @@ export function RecomendacionesAsistentePage() {
 
   const handleAgregarProducto = (useCase: UseCase) => {
     if (!targetSeleccionado) return
+    const resolvedCatalogDose = resolveCatalogDoseFromUseCase(useCase)
     const alreadyExists = productosSeleccionados.some(
       (p) => p.comercialName === useCase.commercial_name && p.targetCommon === targetSeleccionado.target_common,
     )
@@ -168,7 +175,12 @@ export function RecomendacionesAsistentePage() {
         rowId: `${useCase.product_id}-${targetSeleccionado.target_common_norm}-${Date.now()}`,
         comercialName: useCase.commercial_name,
         activeIngredient: useCase.active_ingredient,
-        dosis: useCase.dose,
+        dosis: resolvedCatalogDose.doseLabel,
+        dosePerHa: resolvedCatalogDose.dosePerHa,
+        doseUnit: resolvedCatalogDose.doseUnit,
+        intervalo: resolvedCatalogDose.intervalo,
+        reentrada: resolvedCatalogDose.reentrada,
+        doseStrategy: resolvedCatalogDose.strategy,
         targetCommon: targetSeleccionado.target_common,
         resistanceClass: useCase.resistance_class,
       },
@@ -217,6 +229,10 @@ export function RecomendacionesAsistentePage() {
           gasto: '',
           gastoTotal: '',
           sector: p.targetCommon,
+          dosePerHa: p.dosePerHa,
+          doseUnit: p.doseUnit,
+          intervalo: p.intervalo,
+          reentrada: p.reentrada,
         })),
         dosisPorHa: Array.from({ length: 10 }, () => ''),
         riegoFilas: [],
@@ -371,8 +387,15 @@ export function RecomendacionesAsistentePage() {
                     <p className="text-xs text-gray-500">
                       {p.activeIngredient}
                       {p.dosis ? ` · Dosis: ${p.dosis}` : ''}
+                      {p.dosePerHa != null ? ` · Base/ha: ${p.dosePerHa}` : ''}
+                      {p.doseUnit ? ` ${p.doseUnit}` : ''}
+                      {p.intervalo ? ` · Intervalo: ${p.intervalo}` : ''}
+                      {p.reentrada ? ` · Reentrada: ${p.reentrada}` : ''}
                       {' · Objetivo: '}{p.targetCommon}
                     </p>
+                    {p.doseStrategy === 'range_lower_bound' ? (
+                      <p className="mt-1 text-[11px] text-amber-700">Rango detectado en catálogo: se usa el límite inferior como dosis inicial editable.</p>
+                    ) : null}
                   </div>
                   <button
                     type="button"
