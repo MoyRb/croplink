@@ -257,7 +257,10 @@ export function LandingPage() {
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-10 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-base font-semibold text-slate-900">Croplink ERP</p>
-            <p className="mt-2 text-sm text-slate-600">Contacto: hola@croplink.io · +52 000 000 0000</p>
+            <p className="mt-2 text-sm text-slate-600">
+              Contacto: <a href="mailto:contacto@croplink.com" className="hover:text-emerald-700">contacto@croplink.com</a> ·{' ' }
+              <a href="tel:3339300095" className="hover:text-emerald-700">3339300095</a>
+            </p>
           </div>
           <div className="flex items-center gap-5 text-sm text-slate-600">
             <a href="https://www.linkedin.com" target="_blank" rel="noreferrer" className="hover:text-emerald-700">
