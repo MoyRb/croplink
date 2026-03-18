@@ -6,8 +6,6 @@ import { useStructureCatalog } from './useStructureCatalog'
 const modules = [
   { key: 'operaciones', label: 'Operaciones', to: '/configuracion/estructura/operaciones' },
   { key: 'ranchos', label: 'Ranchos', to: '/configuracion/estructura/ranchos' },
-  { key: 'sectores', label: 'Sectores', to: '/configuracion/estructura/sectores' },
-  { key: 'cultivos', label: 'Cultivos', to: '/configuracion/estructura/cultivos' },
 ]
 
 export function EstructuraDashboardPage() {
@@ -15,16 +13,14 @@ export function EstructuraDashboardPage() {
   const counters: Record<string, number> = {
     operaciones: catalog.operations.length,
     ranchos: catalog.ranches.length,
-    sectores: catalog.sectors.length,
-    tuneles: catalog.tunnels.length,
-    valvulas: catalog.valves.length,
-    cultivos: catalog.crops.length,
-    temporadas: catalog.seasons.length,
   }
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Configuración · Estructura</h1>
+      <div>
+        <h1 className="text-2xl font-semibold">Configuración · Estructura</h1>
+        <p className="text-sm text-gray-500">El flujo visible se concentra en operaciones y ranchos, dejando la captura agrícola básica dentro del alta de rancho.</p>
+      </div>
       {isLoading ? <p className="text-sm text-gray-500">Cargando estructura...</p> : null}
       {loadError ? <p className="text-sm text-red-600">{loadError}</p> : null}
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">

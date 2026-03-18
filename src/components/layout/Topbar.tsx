@@ -26,20 +26,12 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
     operationContext,
     operations,
     ranches,
-    cropSeasons,
-    sectors,
-    tunnels,
-    valves,
     isCatalogLoading,
     hasStructureData,
     contextNotice,
     clearContextNotice,
     setOperation,
     setRanch,
-    setCropSeason,
-    setSector,
-    setTunnel,
-    setValve,
   } = useOperationContext()
   const [signOutError, setSignOutError] = useState<string | null>(null)
   const [profileModalOpen, setProfileModalOpen] = useState(false)
@@ -101,6 +93,7 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
     setProfileSaving(false)
     setProfileModalOpen(false)
   }
+
   useEffect(() => {
     if (!contextNotice) return
     const timer = window.setTimeout(() => {
@@ -207,62 +200,6 @@ export function Topbar({ onMobileMenuClick }: TopbarProps) {
           {ranches.map((ranch) => (
             <option key={ranch.id} value={ranch.id}>
               {ranch.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={cn(selectStyles, 'min-w-36')}
-          value={operationContext.cropSeason?.id ?? ''}
-          onChange={(event) => setCropSeason(event.target.value)}
-          disabled={isCatalogLoading || !operationContext.ranch}
-        >
-          <option value="">Cultivo · Temporada</option>
-          {cropSeasons.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={cn(selectStyles, 'min-w-28')}
-          value={operationContext.sector?.id ?? ''}
-          onChange={(event) => setSector(event.target.value)}
-          disabled={isCatalogLoading || !operationContext.ranch || sectors.length === 0}
-        >
-          <option value="">Sector</option>
-          {sectors.map((sector) => (
-            <option key={sector.id} value={sector.id}>
-              {sector.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={cn(selectStyles, 'min-w-28')}
-          value={operationContext.tunnel?.id ?? ''}
-          onChange={(event) => setTunnel(event.target.value)}
-          disabled={isCatalogLoading || !operationContext.sector || tunnels.length === 0}
-        >
-          <option value="">Túnel</option>
-          {tunnels.map((tunnel) => (
-            <option key={tunnel.id} value={tunnel.id}>
-              {tunnel.name}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className={cn(selectStyles, 'min-w-28')}
-          value={operationContext.valve?.id ?? ''}
-          onChange={(event) => setValve(event.target.value)}
-          disabled={isCatalogLoading || !operationContext.sector || valves.length === 0}
-        >
-          <option value="">Válvula</option>
-          {valves.map((valve) => (
-            <option key={valve.id} value={valve.id}>
-              {valve.name}
             </option>
           ))}
         </select>
