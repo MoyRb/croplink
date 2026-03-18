@@ -10,6 +10,24 @@ type DbCrop = { id: string; name: string; description: string | null }
 type DbSeason = { id: string; label: string; description: string | null; start_date: string; end_date: string }
 type DbRanchCropSeason = { id: string; ranch_id: string; crop_id: string; season_id: string; variety: string | null }
 
+type RanchStructureSectorInput = {
+  id?: string
+  number: number
+  areaHa: number
+  tunnelCount: number
+}
+
+type RanchStructurePayload = {
+  ranch: Omit<Ranch, 'createdAt'>
+  ranchCropSeason: {
+    id?: string
+    cropId: string
+    seasonId: string
+    variety?: string
+  }
+  sectors: RanchStructureSectorInput[]
+}
+
 const requireText = (value: string, message: string) => {
   const trimmed = value.trim()
   if (!trimmed) throw new Error(message)
@@ -113,6 +131,83 @@ export async function upsertRanchSupabase(organizationId: string, payload: Omit<
   }
   const { error } = await supabase.from('ranches').upsert(upsertPayload)
   throwIfError(error)
+}
+
+export async function upsertRanchWithStructureSupabase(organizationId: string, payload: RanchStructurePayload) {
+  const ranchName = requireText(payload.ranch.name, 'El nombre del rancho es requerido.')
+  if (!payload.ranch.operationId) throw new Error('Selecciona una operación.')
+  if (payload.ranch.surfaceHa == null || payload.ranch.surfaceHa <= 0) throw new Error('La superficie del rancho debe ser mayor a 0.')
+  if (!payload.ranchCropSeason.cropId) throw new Error('Selecciona un cultivo.')
+  if (!payload.ranchCropSeason.seasonId) throw new Error('Selecciona una temporada.')
+  if (payload.sectors.length === 0) throw new Error('Agrega al menos un sector.')
+
+  const uniqueNumbers = new Set<number>()
+  let totalSectorSurface = 0
+
+  payload.sectors.forEach((sector, index) => {
+    if (!Number.isInteger(sector.number) || sector.number <= 0) {
+      throw new Error(`El número del sector ${index + 1} debe ser un entero positivo.`)
+    }
+    if (sector.areaHa <= 0) {
+      throw new Error(`La superficie del sector ${sector.number} debe ser mayor a 0.`)
+    }
+    if (!Number.isInteger(sector.tunnelCount) || sector.tunnelCount < 0) {
+      throw new Error(`El número de túneles del sector ${sector.number} debe ser un entero mayor o igual a 0.`)
+    }
+    if (uniqueNumbers.has(sector.number)) {
+      throw new Error(`El número de sector ${sector.number} está repetido.`)
+    }
+    uniqueNumbers.add(sector.number)
+    totalSectorSurface += sector.areaHa
+  })
+
+  if (totalSectorSurface > payload.ranch.surfaceHa) {
+    throw new Error('La suma de superficies de sectores no puede exceder la superficie del rancho.')
+  }
+
+  const ranchUpsertPayload = {
+    id: payload.ranch.id || undefined,
+    organization_id: organizationId,
+    operation_id: payload.ranch.operationId,
+    name: ranchName,
+    location: null,
+    description: payload.ranch.description?.trim() || null,
+    surface_ha: payload.ranch.surfaceHa,
+  }
+
+  const ranchResult = await supabase.from('ranches').upsert(ranchUpsertPayload).select('id').single()
+  throwIfError(ranchResult.error)
+
+  const ranchId = (ranchResult.data as { id: string } | null)?.id
+  if (!ranchId) throw new Error('No se pudo obtener el rancho guardado.')
+
+  const ranchCropSeasonPayload = {
+    id: payload.ranchCropSeason.id || undefined,
+    organization_id: organizationId,
+    ranch_id: ranchId,
+    crop_id: payload.ranchCropSeason.cropId,
+    season_id: payload.ranchCropSeason.seasonId,
+    variety: payload.ranchCropSeason.variety?.trim() || null,
+  }
+
+  const ranchCropSeasonResult = await supabase.from('ranch_crop_seasons').upsert(ranchCropSeasonPayload)
+  throwIfError(ranchCropSeasonResult.error)
+
+  const sectorRows = payload.sectors.map((sector) => ({
+    id: sector.id || undefined,
+    organization_id: organizationId,
+    ranch_id: ranchId,
+    number: sector.number,
+    name: `Sector ${sector.number}`,
+    description: null,
+    surface_ha: sector.areaHa,
+    tunnel_count: sector.tunnelCount,
+  }))
+
+  const sectorsResult = await supabase.from('sectors').upsert(sectorRows)
+  throwIfError(sectorsResult.error)
+
+  return { ranchId }
 }
 
 export async function deleteRanchSupabase(id: string) { const { error } = await supabase.from('ranches').delete().eq('id', id); throwIfError(error) }
