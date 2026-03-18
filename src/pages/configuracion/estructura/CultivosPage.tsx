@@ -12,7 +12,7 @@ export function CultivosPage() {
   const { catalog, isLoading, loadError, organizationId, reload } = useStructureCatalog()
   const [query, setQuery] = useState('')
   const [form, setForm] = useState({ id: '', name: '', description: '' })
-  const [assignmentForm, setAssignmentForm] = useState({ id: '', ranchId: '', cropId: '', seasonId: '' })
+  const [assignmentForm, setAssignmentForm] = useState({ id: '', ranchId: '', cropId: '', seasonId: '', variety: '' })
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState('')
   const feedback = useCrudFeedback()
@@ -44,6 +44,7 @@ export function CultivosPage() {
         <form className="flex flex-wrap gap-2" onSubmit={stopSubmit(() => feedback.run(async () => { if (!organizationId) throw new Error('Perfil sin organización asignada.'); await upsertRanchCropSeasonSupabase(organizationId, assignmentForm); await reload() }, 'Asignación guardada.'))}>
           <select className="rounded-full border border-[#E5E7EB] px-3 py-2" value={assignmentForm.ranchId} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, ranchId: event.target.value }))}><option value="">Rancho</option>{catalog.ranches.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           <select className="rounded-full border border-[#E5E7EB] px-3 py-2" value={assignmentForm.cropId} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, cropId: event.target.value }))}><option value="">Cultivo</option>{catalog.crops.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+          <Input className="min-w-[12rem]" placeholder="Variedad" value={assignmentForm.variety} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, variety: event.target.value }))} />
           <select className="rounded-full border border-[#E5E7EB] px-3 py-2" value={assignmentForm.seasonId} onChange={(event) => setAssignmentForm((prev) => ({ ...prev, seasonId: event.target.value }))}><option value="">Temporada</option>{catalog.seasons.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
           <Button type="submit">Asignar</Button>
         </form>
@@ -51,7 +52,7 @@ export function CultivosPage() {
           {!isLoading && catalog.ranchCropSeasons.length === 0 ? <p className="text-sm text-gray-500">Sin asignaciones registradas.</p> : null}
           {catalog.ranchCropSeasons.map((item) => (
             <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-3 text-sm">
-              <span>{catalog.ranches.find((entry) => entry.id === item.ranchId)?.name} · {catalog.crops.find((entry) => entry.id === item.cropId)?.name} · {catalog.seasons.find((entry) => entry.id === item.seasonId)?.name}</span>
+              <span>{catalog.ranches.find((entry) => entry.id === item.ranchId)?.name} · {catalog.crops.find((entry) => entry.id === item.cropId)?.name} · Variedad: {item.variety?.trim() || '—'} · {catalog.seasons.find((entry) => entry.id === item.seasonId)?.name}</span>
               <Button variant="secondary" onClick={() => feedback.run(async () => { await deleteRanchCropSeasonSupabase(item.id); await reload() }, 'Asignación eliminada.')}>Eliminar</Button>
             </div>
           ))}

@@ -7,10 +7,7 @@ const modules = [
   { key: 'operaciones', label: 'Operaciones', to: '/configuracion/estructura/operaciones' },
   { key: 'ranchos', label: 'Ranchos', to: '/configuracion/estructura/ranchos' },
   { key: 'sectores', label: 'Sectores', to: '/configuracion/estructura/sectores' },
-  { key: 'tuneles', label: 'Túneles', to: '/configuracion/estructura/tuneles' },
-  { key: 'valvulas', label: 'Válvulas', to: '/configuracion/estructura/valvulas' },
   { key: 'cultivos', label: 'Cultivos', to: '/configuracion/estructura/cultivos' },
-  { key: 'temporadas', label: 'Temporadas', to: '/configuracion/estructura/temporadas' },
 ]
 
 export function EstructuraDashboardPage() {

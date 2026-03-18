@@ -34,6 +34,7 @@ import { EstructuraPage } from '../pages/configuracion/EstructuraPage'
 import { CultivosPage } from '../pages/configuracion/estructura/CultivosPage'
 import { OperacionesPage } from '../pages/configuracion/estructura/OperacionesPage'
 import { RanchosPage } from '../pages/configuracion/estructura/RanchosPage'
+import { RanchoDetallePage } from '../pages/configuracion/estructura/RanchoDetallePage'
 import { SectoresPage } from '../pages/configuracion/estructura/SectoresPage'
 import { TemporadasPage } from '../pages/configuracion/estructura/TemporadasPage'
 import { TunelesPage } from '../pages/configuracion/estructura/TunelesPage'
@@ -180,6 +181,7 @@ export function AppRouter() {
         <Route path="/configuracion/estructura" element={<EstructuraPage />} />
         <Route path="/configuracion/estructura/operaciones" element={<OperacionesPage />} />
         <Route path="/configuracion/estructura/ranchos" element={<RanchosPage />} />
+        <Route path="/configuracion/estructura/ranchos/:ranchId" element={<RanchoDetallePage />} />
         <Route path="/configuracion/estructura/sectores" element={<SectoresPage />} />
         <Route path="/configuracion/estructura/tuneles" element={<TunelesPage />} />
         <Route path="/configuracion/estructura/valvulas" element={<ValvulasPage />} />

@@ -64,7 +64,7 @@ export function TunelesPage() {
         <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-3">
           <div>
             <p className="font-medium">{item.name}</p>
-            <p className="text-xs text-gray-500">{sectorLabelsById.get(item.sectorId) ?? 'N/A'} · Válvulas: {catalog.valves.filter((entry) => entry.tunnelId === item.id).length}</p>
+            <p className="text-xs text-gray-500">{sectorLabelsById.get(item.sectorId) ?? 'N/A'}</p>
           </div>
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => { setForm({ id: item.id, sectorId: item.sectorId, number: item.number != null ? String(item.number) : '', description: item.description || '' }); setBulkMode(false); setModalOpen(true) }}>Editar</Button>

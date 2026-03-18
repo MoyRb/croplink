@@ -1,10 +1,12 @@
-import type { HTMLAttributes, PropsWithChildren } from 'react'
+import type { HTMLAttributes, PropsWithChildren, TdHTMLAttributes, ThHTMLAttributes } from 'react'
 
 import { cn } from '../../lib/utils'
 
 type TableProps = HTMLAttributes<HTMLTableElement> & PropsWithChildren
 
-type TableCellProps = HTMLAttributes<HTMLTableCellElement> & PropsWithChildren
+type TableCellProps = TdHTMLAttributes<HTMLTableCellElement> & PropsWithChildren
+
+type TableHeadProps = ThHTMLAttributes<HTMLTableCellElement> & PropsWithChildren
 
 type TableRowProps = HTMLAttributes<HTMLTableRowElement> & PropsWithChildren
 
@@ -16,7 +18,7 @@ export function Table({ className, ...props }: TableProps) {
   )
 }
 
-export function TableHead({ className, ...props }: TableCellProps) {
+export function TableHead({ className, ...props }: TableHeadProps) {
   return (
     <th
       className={cn('bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500', className)}
