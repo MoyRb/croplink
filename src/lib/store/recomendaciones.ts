@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient'
+import { parseDoseLabel } from '../plaguicidas'
 
 export type RecommendationMode = 'FOLIAR_DRENCH' | 'VIA_RIEGO'
 export type RecommendationStatus = 'draft' | 'submitted' | 'approved' | 'rejected'
@@ -107,6 +108,13 @@ const toOptionalStr = (value: unknown) => {
   const str = toStr(value).trim()
   return str ? str : null
 }
+const toNullableNumber = (value: unknown) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  const str = toStr(value).trim()
+  if (!str) return null
+  const parsed = Number.parseFloat(str)
+  return Number.isFinite(parsed) ? parsed : null
+}
 
 const getNestedName = (value: { name: string | null }[] | { name: string | null } | null | undefined) =>
   Array.isArray(value) ? value[0]?.name ?? '' : value?.name ?? ''
@@ -152,18 +160,21 @@ const mapRecommendation = (row: RecommendationRow, products: ProductRow[], irrig
     horaInicio: row.hora_inicio ?? '',
     horaTermino: row.hora_fin ?? '',
     comentarios: row.comentarios ?? '',
-    productos: products.map((item) => ({
-      producto: item.product_name,
-      ingredienteActivo: item.active_ingredient ?? '',
-      dosis: toStr(item.dosis?.value),
-      gasto: toStr(item.gasto?.value),
-      gastoTotal: toStr(item.gasto_total?.value),
-      sector: item.notes ?? '',
-      dosePerHa: item.dose_per_ha ?? null,
-      doseUnit: item.dose_unit ?? null,
-      intervalo: toOptionalStr(item.dosis?.intervalo ?? item.gasto?.intervalo ?? item.gasto_total?.intervalo),
-      reentrada: toOptionalStr(item.dosis?.reentrada ?? item.gasto?.reentrada ?? item.gasto_total?.reentrada),
-    })),
+    productos: products.map((item) => {
+      const parsedDose = parseDoseLabel(toStr(item.dosis?.value))
+      return {
+        producto: item.product_name,
+        ingredienteActivo: item.active_ingredient ?? '',
+        dosis: toStr(item.dosis?.value),
+        gasto: toStr(item.gasto?.value),
+        gastoTotal: toStr(item.gasto_total?.value),
+        sector: item.notes ?? '',
+        dosePerHa: item.dose_per_ha ?? parsedDose.dosePerHa,
+        doseUnit: item.dose_unit ?? parsedDose.doseUnit,
+        intervalo: toOptionalStr(item.dosis?.intervalo ?? item.gasto?.intervalo ?? item.gasto_total?.intervalo),
+        reentrada: toOptionalStr(item.dosis?.reentrada ?? item.gasto?.reentrada ?? item.gasto_total?.reentrada),
+      }
+    }),
     dosisPorHa,
     riegoFilas: irrigationRows.map((item) => ({
       sector: getNestedName(item.sectors),
@@ -319,10 +330,16 @@ export const createRecomendacion = async (payload: Omit<Recomendacion, 'id' | 'c
         recommendation_id: recommendation.id,
         product_name: item.producto,
         active_ingredient: item.ingredienteActivo || null,
-        dosis: { value: item.dosis },
+        dosis: {
+          value: item.dosis,
+          intervalo: item.intervalo ?? null,
+          reentrada: item.reentrada ?? null,
+        },
         gasto: { value: item.gasto },
         gasto_total: { value: item.gastoTotal },
         notes: item.sector || null,
+        dose_per_ha: toNullableNumber(item.dosePerHa),
+        dose_unit: toOptionalStr(item.doseUnit),
         sort_order: index,
       })),
     )
@@ -410,6 +427,7 @@ type ProductConDosisRow = {
   id: string
   product_name: string
   active_ingredient: string | null
+  dosis: Record<string, unknown> | null
   dose_per_ha: number | null
   dose_unit: string | null
   sort_order: number
@@ -425,19 +443,22 @@ export const getProductosConDosis = async (recommendationId: string): Promise<Pr
   const organizationId = await getProfileOrg()
   const { data, error } = await supabase
     .from('recommendation_products')
-    .select('id, product_name, active_ingredient, dose_per_ha, dose_unit, sort_order')
+    .select('id, product_name, active_ingredient, dosis, dose_per_ha, dose_unit, sort_order')
     .eq('recommendation_id', recommendationId)
     .eq('organization_id', organizationId)
     .order('sort_order', { ascending: true })
   if (error) throw new Error(error.message)
-  return ((data ?? []) as ProductConDosisRow[]).map((item) => ({
-    id: item.id,
-    productName: item.product_name,
-    activeIngredient: item.active_ingredient,
-    dosePerHa: item.dose_per_ha,
-    doseUnit: item.dose_unit,
-    sortOrder: item.sort_order,
-  }))
+  return ((data ?? []) as ProductConDosisRow[]).map((item) => {
+    const parsedDose = parseDoseLabel(toStr(item.dosis?.value))
+    return {
+      id: item.id,
+      productName: item.product_name,
+      activeIngredient: item.active_ingredient,
+      dosePerHa: item.dose_per_ha ?? parsedDose.dosePerHa,
+      doseUnit: item.dose_unit ?? parsedDose.doseUnit,
+      sortOrder: item.sort_order,
+    }
+  })
 }
 
 export const updateProductDosisSupabase = async (productId: string, dosePerHa: number | null, doseUnit: string | null) => {
