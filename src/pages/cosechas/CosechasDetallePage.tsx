@@ -113,7 +113,7 @@ export function CosechasDetallePage() {
     }
 
     const validDetalle = detalle.filter(
-      (row) => row.empaque.trim() || row.cajas > 0 || row.rechazos > 0 || row.kgProceso > 0 || row.rendimiento > 0,
+      (row) => row.empaque.trim() || row.cajas > 0 || row.rechazos > 0 || row.kgProceso > 0,
     )
     if (validDetalle.length === 0) {
       setError('Agrega al menos una fila de detalle con información de rendimiento.')
@@ -298,7 +298,7 @@ export function CosechasDetallePage() {
               <p><span className="text-gray-500">Total cajas:</span> {formatNumber(cosecha.totalCajas)}</p>
               <p><span className="text-gray-500">Total kg proceso:</span> {formatNumber(cosecha.totalKgProceso)}</p>
               <p><span className="text-gray-500">Total rechazos:</span> {formatNumber(cosecha.totalRechazos)}</p>
-              <p><span className="text-gray-500">Rendimiento promedio:</span> {formatNumber(cosecha.promedioRendimiento)}%</p>
+              <p><span className="text-gray-500">% Proceso:</span> {formatNumber(cosecha.promedioRendimiento)}%</p>
               <p className="md:col-span-2 xl:col-span-4"><span className="text-gray-500">Notas:</span> {cosecha.notes || 'Sin notas.'}</p>
             </div>
           </div>
