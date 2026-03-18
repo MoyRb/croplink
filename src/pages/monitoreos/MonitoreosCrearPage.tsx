@@ -1,11 +1,21 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
-import { ETAPAS_FENOLOGICAS, METEO_OPTIONS, createSession, type SessionConfig } from '../../lib/monitoreo'
+import {
+  ETAPAS_FENOLOGICAS,
+  METEO_OPTIONS,
+  WHAT_TO_SAMPLE_OPTIONS,
+  buildSamplingTable,
+  createSession,
+  getMonitoringTypeFromSubject,
+  getSamplingSubjectLabel,
+  type SamplingTableRow,
+  type SessionConfig,
+} from '../../lib/monitoreo'
 import { useOperationContext } from '../../lib/store/operationContext'
 
 type ThresholdRule = {
@@ -24,16 +34,25 @@ const parseNullableNumber = (value: string) => {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
+const today = new Date().toISOString().slice(0, 10)
+
 export function MonitoreosCrearPage() {
   const navigate = useNavigate()
   const { operationContext, ranches, cropSeasons, sectors, tunnels, valves } = useOperationContext()
 
   const [config, setConfig] = useState<SessionConfig>({
+    fechaMonitoreo: today,
+    queMuestrear: 'PLAGAS',
     rancho: operationContext.ranch?.name || '',
+    ranchoId: operationContext.ranch?.id,
     cultivo: operationContext.cropSeason?.name || '',
+    cultivoId: operationContext.cropSeason?.id,
     sector: operationContext.sector?.name || '',
+    sectorId: operationContext.sector?.id,
     tunnel: operationContext.tunnel?.name || undefined,
+    tunnelId: operationContext.tunnel?.id,
     valve: operationContext.valve?.name || undefined,
+    valveId: operationContext.valve?.id,
     condicionMeteorologica: 'Soleado',
     etapaFenologica: 'vegetativa',
     puntosPorSector: 8,
@@ -42,6 +61,7 @@ export function MonitoreosCrearPage() {
     tipoMonitoreo: 'DESARROLLO',
     sistemaProduccion: 'HIDROPONICO',
     umbrales: [],
+    tablaMuestreo: [],
   })
 
   const [thresholdRules, setThresholdRules] = useState<ThresholdRule[]>([])
@@ -52,10 +72,30 @@ export function MonitoreosCrearPage() {
   const [formError, setFormError] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const availableRanches = useMemo(
-    () => ranches.map((item) => item.name),
-    [ranches],
-  )
+  useEffect(() => {
+    setConfig((prev) => ({
+      ...prev,
+      rancho: operationContext.ranch?.name || prev.rancho,
+      ranchoId: operationContext.ranch?.id ?? prev.ranchoId,
+      cultivo: operationContext.cropSeason?.name || prev.cultivo,
+      cultivoId: operationContext.cropSeason?.id ?? prev.cultivoId,
+      sector: operationContext.sector?.name || prev.sector,
+      sectorId: operationContext.sector?.id ?? prev.sectorId,
+      tunnel: operationContext.tunnel?.name || prev.tunnel,
+      tunnelId: operationContext.tunnel?.id ?? prev.tunnelId,
+      valve: operationContext.valve?.name || prev.valve,
+      valveId: operationContext.valve?.id ?? prev.valveId,
+    }))
+  }, [operationContext.cropSeason, operationContext.ranch, operationContext.sector, operationContext.tunnel, operationContext.valve])
+
+  const samplingTable = useMemo<SamplingTableRow[]>(() => {
+    return buildSamplingTable({
+      cultivo: config.cultivo,
+      etapaFenologica: config.etapaFenologica,
+      queMuestrear: config.queMuestrear,
+      sistemaProduccion: config.sistemaProduccion,
+    })
+  }, [config.cultivo, config.etapaFenologica, config.queMuestrear, config.sistemaProduccion])
 
   const handleAddThreshold = () => {
     const normalizedMetric = metric.trim()
@@ -66,6 +106,16 @@ export function MonitoreosCrearPage() {
 
     const parsedMin = parseNullableNumber(min)
     const parsedMax = parseNullableNumber(max)
+
+    if (parsedMin === undefined && parsedMax === undefined) {
+      setFormError('Captura al menos un valor mínimo o máximo.')
+      return
+    }
+
+    if (parsedMin !== undefined && parsedMax !== undefined && parsedMin > parsedMax) {
+      setFormError('El valor mínimo no puede ser mayor al máximo.')
+      return
+    }
 
     setThresholdRules((prev) => {
       const existingIndex = prev.findIndex(
@@ -107,9 +157,68 @@ export function MonitoreosCrearPage() {
     setThresholdRules((prev) => prev.filter((rule) => rule.id !== id))
   }
 
+  const handleSelectRanch = (ranchId: string) => {
+    const selected = ranches.find((item) => item.id === ranchId)
+    setConfig((prev) => ({
+      ...prev,
+      ranchoId: ranchId || undefined,
+      rancho: selected?.name ?? '',
+      cultivoId: undefined,
+      cultivo: '',
+      sectorId: undefined,
+      sector: '',
+      tunnelId: undefined,
+      tunnel: undefined,
+      valveId: undefined,
+      valve: undefined,
+    }))
+  }
+
+  const handleSelectCropSeason = (cropSeasonId: string) => {
+    const selected = cropSeasons.find((item) => item.id === cropSeasonId)
+    setConfig((prev) => ({
+      ...prev,
+      cultivoId: cropSeasonId || undefined,
+      cultivo: selected?.name ?? '',
+    }))
+  }
+
+  const handleSelectSector = (sectorId: string) => {
+    const selected = sectors.find((item) => item.id === sectorId)
+    setConfig((prev) => ({
+      ...prev,
+      sectorId: sectorId || undefined,
+      sector: selected?.name ?? '',
+      tunnelId: undefined,
+      tunnel: undefined,
+      valveId: undefined,
+      valve: undefined,
+    }))
+  }
+
+  const handleSelectTunnel = (tunnelId: string) => {
+    const selected = tunnels.find((item) => item.id === tunnelId)
+    setConfig((prev) => ({
+      ...prev,
+      tunnelId: tunnelId || undefined,
+      tunnel: selected?.name ?? undefined,
+      valveId: undefined,
+      valve: undefined,
+    }))
+  }
+
+  const handleSelectValve = (valveId: string) => {
+    const selected = valves.find((item) => item.id === valveId)
+    setConfig((prev) => ({
+      ...prev,
+      valveId: valveId || undefined,
+      valve: selected?.name ?? undefined,
+    }))
+  }
+
   const handleIniciarMonitoreo = async () => {
-    if (!config.rancho.trim() || !config.cultivo.trim() || !config.sector.trim() || !config.etapaFenologica) {
-      setFormError('Completa rancho, cultivo, sector y etapa para iniciar el monitoreo.')
+    if (!config.fechaMonitoreo || !config.rancho.trim() || !config.cultivo.trim() || !config.etapaFenologica) {
+      setFormError('Completa fecha, rancho, cultivo y etapa para iniciar el monitoreo.')
       return
     }
 
@@ -118,9 +227,19 @@ export function MonitoreosCrearPage() {
       return
     }
 
+    if (samplingTable.length === 0) {
+      setFormError('No se pudo preparar la tabla de muestreo para el contexto seleccionado.')
+      return
+    }
+
     setSaving(true)
     try {
-      const created = await createSession({ ...config, umbrales: thresholdRules })
+      const created = await createSession({
+        ...config,
+        tipoMonitoreo: getMonitoringTypeFromSubject(config.queMuestrear),
+        umbrales: thresholdRules,
+        tablaMuestreo: samplingTable,
+      })
       setFormError('')
       navigate(`/monitoreos/sesion/${created.id}`)
     } catch (error) {
@@ -136,85 +255,109 @@ export function MonitoreosCrearPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Configurar monitoreo</h1>
-        <p className="text-sm text-gray-500">Define contexto, muestreo, umbrales y tipo de monitoreo.</p>
+        <p className="text-sm text-gray-500">Define el contexto del monitoreo, los umbrales y la tabla base de muestreo.</p>
       </div>
 
       <Card className="space-y-4">
-        <h2 className="font-semibold text-gray-900">Contexto</h2>
+        <div className="space-y-1">
+          <h2 className="font-semibold text-gray-900">1) Contexto del monitoreo</h2>
+          <p className="text-sm text-gray-500">Selecciona explícitamente qué se va a muestrear y en qué condiciones se levantará el monitoreo.</p>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Qué se va a muestrear</p>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+            {WHAT_TO_SAMPLE_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`rounded-2xl border px-4 py-3 text-left transition ${
+                  config.queMuestrear === option.value
+                    ? 'border-[#0B6B2A] bg-[#DBFAE6] text-[#0B6B2A]'
+                    : 'border-[#E5E7EB] bg-white text-gray-700'
+                }`}
+                onClick={() =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    queMuestrear: option.value,
+                    tipoMonitoreo: getMonitoringTypeFromSubject(option.value),
+                  }))
+                }
+              >
+                <p className="text-sm font-semibold">{option.label}</p>
+                <p className="mt-1 text-xs opacity-80">{option.description}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          <select
-            className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
-            value={config.rancho}
-            onChange={(event) => setConfig((prev) => ({ ...prev, rancho: event.target.value }))}
-          >
-            <option value="">Rancho</option>
-            {availableRanches.map((name) => (
-              <option key={name}>{name}</option>
-            ))}
-          </select>
-          <select
-            className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
-            value={config.cultivo}
-            onChange={(event) => setConfig((prev) => ({ ...prev, cultivo: event.target.value }))}
-          >
-            <option value="">Cultivo</option>
-            {cropSeasons.map((item) => item.name).map((name) => (
-              <option key={name}>{name}</option>
-            ))}
-          </select>
           <Input
-            type="number"
-            placeholder="Superficie"
-            value={config.superficie ?? ''}
-            onChange={(event) => setConfig((prev) => ({ ...prev, superficie: Number(event.target.value) }))}
+            type="date"
+            value={config.fechaMonitoreo}
+            onChange={(event) => setConfig((prev) => ({ ...prev, fechaMonitoreo: event.target.value }))}
           />
           <select
             className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
-            value={config.sector}
-            onChange={(event) => setConfig((prev) => ({ ...prev, sector: event.target.value }))}
+            value={config.ranchoId ?? ''}
+            onChange={(event) => handleSelectRanch(event.target.value)}
           >
-            <option value="">Sector</option>
-            {(sectors.length > 0 ? sectors.map((item) => item.name) : ['Sector 1']).map((name) => (
-              <option key={name}>{name}</option>
+            <option value="">Rancho</option>
+            {ranches.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </select>
           <select
             className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
-            value={config.tunnel ?? ''}
-            onChange={(event) => setConfig((prev) => ({ ...prev, tunnel: event.target.value || undefined }))}
+            value={config.cultivoId ?? ''}
+            onChange={(event) => handleSelectCropSeason(event.target.value)}
+          >
+            <option value="">Cultivo</option>
+            {cropSeasons.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+          <select
+            className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
+            value={config.sectorId ?? ''}
+            onChange={(event) => handleSelectSector(event.target.value)}
+          >
+            <option value="">Sector base (opcional)</option>
+            {sectors.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+          <select
+            className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
+            value={config.tunnelId ?? ''}
+            onChange={(event) => handleSelectTunnel(event.target.value)}
           >
             <option value="">Túnel (opcional)</option>
             {tunnels.map((item) => (
-              <option key={item.id}>{item.name}</option>
+              <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </select>
           <select
             className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
-            value={config.valve ?? ''}
-            onChange={(event) => setConfig((prev) => ({ ...prev, valve: event.target.value || undefined }))}
+            value={config.valveId ?? ''}
+            onChange={(event) => handleSelectValve(event.target.value)}
           >
             <option value="">Válvula (opcional)</option>
             {valves.map((item) => (
-              <option key={item.id}>{item.name}</option>
+              <option key={item.id} value={item.id}>{item.name}</option>
             ))}
           </select>
-        </div>
-      </Card>
-
-      <Card className="space-y-4">
-        <h2 className="font-semibold text-gray-900">Condiciones ambientales</h2>
-        <div className="grid gap-3 md:grid-cols-3">
           <Input
             type="number"
             placeholder="Humedad relativa (%)"
             value={config.humedadRelativa ?? ''}
-            onChange={(event) => setConfig((prev) => ({ ...prev, humedadRelativa: Number(event.target.value) }))}
+            onChange={(event) => setConfig((prev) => ({ ...prev, humedadRelativa: Number(event.target.value) || undefined }))}
           />
           <Input
             type="number"
             placeholder="Temperatura (°C)"
             value={config.temperatura ?? ''}
-            onChange={(event) => setConfig((prev) => ({ ...prev, temperatura: Number(event.target.value) }))}
+            onChange={(event) => setConfig((prev) => ({ ...prev, temperatura: Number(event.target.value) || undefined }))}
           />
           <select
             className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
@@ -228,106 +371,33 @@ export function MonitoreosCrearPage() {
             ))}
           </select>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {ETAPAS_FENOLOGICAS.map((etapa) => (
-            <button
-              key={etapa.value}
-              type="button"
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                config.etapaFenologica === etapa.value
-                  ? 'bg-[#DBFAE6] text-[#0B6B2A]'
-                  : 'bg-gray-100 text-gray-600'
-              }`}
-              onClick={() => setConfig((prev) => ({ ...prev, etapaFenologica: etapa.value }))}
-            >
-              {etapa.label}
-            </button>
-          ))}
+
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-gray-700">Etapa de la planta</p>
+          <div className="flex flex-wrap gap-2">
+            {ETAPAS_FENOLOGICAS.map((etapa) => (
+              <button
+                key={etapa.value}
+                type="button"
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  config.etapaFenologica === etapa.value
+                    ? 'bg-[#DBFAE6] text-[#0B6B2A]'
+                    : 'bg-gray-100 text-gray-600'
+                }`}
+                onClick={() => setConfig((prev) => ({ ...prev, etapaFenologica: etapa.value }))}
+              >
+                {etapa.label}
+              </button>
+            ))}
+          </div>
         </div>
       </Card>
 
       <Card className="space-y-4">
-        <h2 className="font-semibold text-gray-900">Muestreo y tipo</h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700" htmlFor="puntos-por-sector">
-              Puntos por sector
-            </label>
-            <Input
-              id="puntos-por-sector"
-              type="number"
-              min={1}
-              step={1}
-              value={config.puntosPorSector}
-              onChange={(event) => setConfig((prev) => ({ ...prev, puntosPorSector: Number(event.target.value) || 1 }))}
-            />
-            <p className="text-xs text-gray-500">Cantidad de puntos de evaluación dentro del sector.</p>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700" htmlFor="plantas-por-punto">
-              Plantas por punto
-            </label>
-            <Input
-              id="plantas-por-punto"
-              type="number"
-              min={1}
-              step={1}
-              value={config.plantasPorPunto}
-              onChange={(event) => setConfig((prev) => ({ ...prev, plantasPorPunto: Number(event.target.value) || 1 }))}
-            />
-            <p className="text-xs text-gray-500">Número de plantas que revisarás en cada punto.</p>
-          </div>
-          <div className="space-y-1">
-            <label className="text-sm font-medium text-gray-700" htmlFor="metros-muestreados">
-              Metros muestreados (m)
-            </label>
-            <Input
-              id="metros-muestreados"
-              type="number"
-              min={0.5}
-              step={0.5}
-              value={config.metrosMuestreados}
-              onChange={(event) => setConfig((prev) => ({ ...prev, metrosMuestreados: Number(event.target.value) || 1 }))}
-            />
-            <p className="text-xs text-gray-500">Longitud del tramo evaluado por punto.</p>
-          </div>
+        <div className="space-y-1">
+          <h2 className="font-semibold text-gray-900">2) Umbrales</h2>
+          <p className="text-sm text-gray-500">Reglas genéricas por métrica para evaluar rangos mínimos y máximos.</p>
         </div>
-        <p className="text-sm text-gray-600">
-          Muestra total: {config.puntosPorSector} × {config.plantasPorPunto} = {muestraTotal} plantas
-        </p>
-
-        <div className="flex gap-2">
-          <Button
-            type="button"
-            variant={config.tipoMonitoreo === 'DESARROLLO' ? 'primary' : 'secondary'}
-            onClick={() => setConfig((prev) => ({ ...prev, tipoMonitoreo: 'DESARROLLO' }))}
-          >
-            Desarrollo
-          </Button>
-          <Button
-            type="button"
-            variant={config.tipoMonitoreo === 'NUTRICION' ? 'primary' : 'secondary'}
-            onClick={() => setConfig((prev) => ({ ...prev, tipoMonitoreo: 'NUTRICION' }))}
-          >
-            Nutrición
-          </Button>
-          {config.tipoMonitoreo === 'NUTRICION' ? (
-            <select
-              className="rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
-              value={config.sistemaProduccion}
-              onChange={(event) =>
-                setConfig((prev) => ({ ...prev, sistemaProduccion: event.target.value as 'HIDROPONICO' | 'SUELO' }))
-              }
-            >
-              <option value="HIDROPONICO">Hidropónico</option>
-              <option value="SUELO">Suelo</option>
-            </select>
-          ) : null}
-        </div>
-      </Card>
-
-      <Card className="space-y-4">
-        <h2 className="font-semibold text-gray-900">Umbrales</h2>
         <div className="grid gap-3 md:grid-cols-5">
           <Input placeholder="Métrica" value={metric} onChange={(event) => setMetric(event.target.value)} />
           <Input placeholder="Min" type="number" value={min} onChange={(event) => setMin(event.target.value)} />
@@ -350,6 +420,96 @@ export function MonitoreosCrearPage() {
               </button>
             </div>
           ))}
+          {thresholdRules.length === 0 ? <p className="text-sm text-gray-500">Aún no agregas reglas.</p> : null}
+        </div>
+      </Card>
+
+      <Card className="space-y-4">
+        <div className="space-y-1">
+          <h2 className="font-semibold text-gray-900">3) Tabla de muestreo</h2>
+          <p className="text-sm text-gray-500">La tabla base se prepara con el cultivo, la etapa y el enfoque seleccionado.</p>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="puntos-por-sector">
+              Puntos por sector
+            </label>
+            <Input
+              id="puntos-por-sector"
+              type="number"
+              min={1}
+              step={1}
+              value={config.puntosPorSector}
+              onChange={(event) => setConfig((prev) => ({ ...prev, puntosPorSector: Number(event.target.value) || 1 }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="plantas-por-punto">
+              Plantas por punto
+            </label>
+            <Input
+              id="plantas-por-punto"
+              type="number"
+              min={1}
+              step={1}
+              value={config.plantasPorPunto}
+              onChange={(event) => setConfig((prev) => ({ ...prev, plantasPorPunto: Number(event.target.value) || 1 }))}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-gray-700" htmlFor="metros-muestreados">
+              Metros muestreados (m)
+            </label>
+            <Input
+              id="metros-muestreados"
+              type="number"
+              min={0.5}
+              step={0.5}
+              value={config.metrosMuestreados}
+              onChange={(event) => setConfig((prev) => ({ ...prev, metrosMuestreados: Number(event.target.value) || 1 }))}
+            />
+          </div>
+          {config.queMuestrear === 'NUTRICION' ? (
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-gray-700" htmlFor="sistema-produccion">
+                Sistema de producción
+              </label>
+              <select
+                id="sistema-produccion"
+                className="w-full rounded-full border border-[#E5E7EB] px-4 py-2 text-sm"
+                value={config.sistemaProduccion}
+                onChange={(event) =>
+                  setConfig((prev) => ({ ...prev, sistemaProduccion: event.target.value as 'HIDROPONICO' | 'SUELO' }))
+                }
+              >
+                <option value="HIDROPONICO">Hidropónico</option>
+                <option value="SUELO">Suelo</option>
+              </select>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm text-gray-600">
+          <Badge>{getSamplingSubjectLabel(config.queMuestrear)}</Badge>
+          <span>Muestra total: {config.puntosPorSector} × {config.plantasPorPunto} = {muestraTotal} plantas</span>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-[#E5E7EB]">
+          <div className="grid grid-cols-[1.4fr_1fr_0.9fr] bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+            <span>Variable</span>
+            <span>Unidad</span>
+            <span>Captura</span>
+          </div>
+          <div className="divide-y divide-[#E5E7EB]">
+            {samplingTable.map((row) => (
+              <div key={row.key} className="grid grid-cols-[1.4fr_1fr_0.9fr] px-4 py-3 text-sm text-gray-700">
+                <span>{row.label}</span>
+                <span>{row.unit || '—'}</span>
+                <span>{row.type === 'text' ? 'Texto' : row.type === 'select' ? 'Selección' : 'Numérico'}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </Card>
 

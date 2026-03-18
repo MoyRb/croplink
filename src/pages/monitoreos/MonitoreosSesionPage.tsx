@@ -6,14 +6,13 @@ import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import {
-  DESARROLLO_TEMPLATES,
-  NUTRICION_BASE,
-  NUTRICION_BY_SISTEMA,
   addSectorToSession,
   calcDensity,
   evaluateThreshold,
   findThreshold,
-  getRootMetricsTemplates,
+  getHallazgoTypeFromSubject,
+  getSamplingMetricTemplates,
+  getSamplingSubjectLabel,
   getSessionById,
   updatePlantMetrics,
   updatePointMeasurements,
@@ -39,8 +38,6 @@ export function MonitoreosSesionPage() {
   const pendingMetricRef = useRef<{ plantId: string; metrics: Record<string, number | string> } | null>(null)
   const pointDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPointRef = useRef<{ pointId: string; metros: number; conteo: number } | null>(null)
-  const [rootLengthError, setRootLengthError] = useState('')
-  const [rootWhitePctError, setRootWhitePctError] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -67,14 +64,7 @@ export function MonitoreosSesionPage() {
 
   const templates: MetricTemplate[] = useMemo(() => {
     if (!session) return []
-    return session.config.tipoMonitoreo === 'DESARROLLO'
-      ? DESARROLLO_TEMPLATES[session.config.etapaFenologica]
-      : [...NUTRICION_BASE, ...NUTRICION_BY_SISTEMA[session.config.sistemaProduccion ?? 'HIDROPONICO']]
-  }, [session])
-
-  const rootTemplates = useMemo(() => {
-    if (!session) return []
-    return getRootMetricsTemplates(session.config.tipoMonitoreo, session.config.etapaFenologica)
+    return getSamplingMetricTemplates(session.config)
   }, [session])
 
   const persistSession = async (updater: Parameters<typeof updateSession>[1]) => {
@@ -140,16 +130,6 @@ export function MonitoreosSesionPage() {
       const parsed = Number(rawValue)
       if (Number.isNaN(parsed)) return
       value = Math.max(0, parsed)
-    }
-
-    // Field-specific validation
-    if (key === 'raiz_longitud_cm') {
-      setRootLengthError((value as number) < 0 ? 'La longitud de raíz debe ser mayor o igual a 0 cm.' : '')
-    }
-    if (key === 'raiz_blanca_pct') {
-      const pct = Number(value)
-      if (pct > 100) { setRootWhitePctError('El porcentaje de raíz blanca debe estar entre 0 y 100.'); return }
-      setRootWhitePctError('')
     }
 
     // 1. Optimistic local update
@@ -227,7 +207,7 @@ export function MonitoreosSesionPage() {
       const next = structuredClone(draft)
       next.sectors[activeSector].points[activePoint].plantas[activePlant].hallazgos.push({
         id: crypto.randomUUID(),
-        tipo: 'Plaga',
+        tipo: getHallazgoTypeFromSubject(next.config.queMuestrear),
         descripcion: '',
         fotos: [],
       })
@@ -246,7 +226,7 @@ export function MonitoreosSesionPage() {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Sesión de monitoreo</h1>
           <p className="text-sm text-gray-500">
-            {session.config.rancho} · {session.config.cultivo} · {session.config.tipoMonitoreo}
+            {session.config.rancho} · {session.config.cultivo} · {getSamplingSubjectLabel(session.config.queMuestrear)}
           </p>
           {error ? <p className="text-xs text-red-600">{error}</p> : null}
           {saving ? <p className="text-xs text-gray-500">Guardando…</p> : null}
@@ -338,7 +318,7 @@ export function MonitoreosSesionPage() {
                     ))}
                   </select>
                 ) : (
-                  <Input type={template.type === 'text' ? 'text' : 'number'} min={template.type !== 'text' ? 0 : undefined} step={template.type !== 'text' ? 0.01 : undefined} value={value?.toString() ?? ''} onChange={(event) => saveMetric(template.key, event.target.value)} />
+                  <Input type={template.type === 'text' ? 'text' : 'number'} min={template.type !== 'text' ? 0 : undefined} step={template.type !== 'text' ? 0.01 : undefined} value={value?.toString() ?? ''} onChange={(event) => saveMetric(template.key, event.target.value, templates)} />
                 )}
               </div>
             )
@@ -346,29 +326,7 @@ export function MonitoreosSesionPage() {
         </div>
       </Card>
 
-      {rootTemplates.length > 0 ? (
-        <Card className="space-y-4">
-          <h2 className="font-semibold text-gray-900">Raíz</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            {rootTemplates.map((template) => {
-              const threshold = findThreshold(template.key, session.config.umbrales)
-              const value = plant.metrics[template.key]
-              const numericValue = Number(value)
-              const status = threshold && !Number.isNaN(numericValue) ? evaluateThreshold(numericValue, threshold) : 'ok'
-              const highlight = status === 'ok' ? '' : status === 'above' ? 'border-red-300 bg-red-50' : 'border-amber-300 bg-amber-50'
 
-              return (
-                <div key={template.key} className={`rounded-2xl border p-3 ${highlight}`}>
-                  <label className="mb-1 block text-xs font-semibold text-gray-600">{template.label}</label>
-                  <Input type={template.type === 'text' ? 'text' : 'number'} min={template.type !== 'text' ? 0 : undefined} step={template.type !== 'text' ? 0.01 : undefined} value={value?.toString() ?? ''} onChange={(event) => saveMetric(template.key, event.target.value, rootTemplates)} />
-                </div>
-              )
-            })}
-          </div>
-          {rootLengthError ? <p className="text-sm text-red-600">{rootLengthError}</p> : null}
-          {rootWhitePctError ? <p className="text-sm text-red-600">{rootWhitePctError}</p> : null}
-        </Card>
-      ) : null}
 
       <Card className="space-y-3">
         <div className="flex items-center justify-between">
