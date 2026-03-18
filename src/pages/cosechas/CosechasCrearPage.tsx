@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { Button } from '../../components/ui/Button'
@@ -6,97 +6,100 @@ import { Card } from '../../components/ui/Card'
 import { Input } from '../../components/ui/Input'
 import { Toast } from '../../components/ui/Toast'
 import { useOperationCatalog } from '../../lib/operationCatalog/useOperationCatalog'
-import { listHarvestActivities, listHarvestEmployees, useCosechasStore, type HarvestActivity, type HarvestEmployee } from '../../lib/store/cosechas'
+import { useCosechasStore } from '../../lib/store/cosechas'
+import { CosechaRendimientoTable } from './CosechaRendimientoTable'
+import { createEmptyHarvestDetail } from './cosechaRendimientoTableUtils'
 
 export function CosechasCrearPage() {
   const navigate = useNavigate()
-  const { catalog } = useOperationCatalog()
+  const { catalog, isLoading: loadingCatalog, loadError: catalogError } = useOperationCatalog()
   const { saveNewCosecha, isSaving, error } = useCosechasStore()
-
-  const [empleados, setEmpleados] = useState<HarvestEmployee[]>([])
-  const [actividades, setActividades] = useState<HarvestActivity[]>([])
-  const [loadingCatalog, setLoadingCatalog] = useState(true)
-  const [catalogError, setCatalogError] = useState('')
 
   const [form, setForm] = useState({
     fecha: new Date().toISOString().slice(0, 10),
     ranchoId: '',
-    cropId: '',
-    seasonId: '',
+    ranchCropSeasonId: '',
     sectorId: '',
-    unidad: 'kg',
-    cantidadTotal: 0,
-    actividad: '',
+    manejoAgronomico: '',
     notes: '',
   })
-  const [cuadrilla, setCuadrilla] = useState([{ empleadoId: '', unidades: 0 }])
+  const [detalle, setDetalle] = useState([createEmptyHarvestDetail()])
   const [formError, setFormError] = useState('')
   const [toast, setToast] = useState('')
 
-  useEffect(() => {
-    const load = async () => {
-      setLoadingCatalog(true)
-      setCatalogError('')
-      try {
-        const [employeesData, activitiesData] = await Promise.all([listHarvestEmployees(), listHarvestActivities()])
-        setEmpleados(employeesData)
-        setActividades(activitiesData)
-        if (activitiesData[0]) {
-          setForm((prev) => ({ ...prev, actividad: prev.actividad || activitiesData[0].actividad, unidad: activitiesData[0].unidad }))
-        }
-      } catch (err) {
-        setCatalogError(err instanceof Error ? err.message : 'No se pudo cargar catálogo de cosechas.')
-      } finally {
-        setLoadingCatalog(false)
-      }
-    }
-
-    void load()
-  }, [])
-
-  const selectedRanch = catalog.ranches.find((r) => r.id === form.ranchoId)
-  const selectedSector = catalog.sectors.find((s) => s.id === form.sectorId)
-  const sectores = catalog.sectors.filter((item) => item.ranchId === form.ranchoId)
-
-  const handleCuadrillaChange = (index: number, field: 'empleadoId' | 'unidades', value: string) => {
-    setCuadrilla((prev) =>
-      prev.map((row, i) =>
-        i === index ? { ...row, [field]: field === 'unidades' ? Number(value) : value } : row,
-      ),
-    )
-  }
-
-  const selectedActivity = useMemo(
-    () => actividades.find((item) => item.actividad === form.actividad),
-    [actividades, form.actividad],
+  const ranchCropSeasonOptions = useMemo(
+    () => catalog.ranchCropSeasons.filter((item) => item.ranchId === form.ranchoId),
+    [catalog.ranchCropSeasons, form.ranchoId],
   )
+
+  const sectores = useMemo(() => catalog.sectors.filter((item) => item.ranchId === form.ranchoId), [catalog.sectors, form.ranchoId])
+
+  const selectedRanchCropSeason = useMemo(
+    () => ranchCropSeasonOptions.find((item) => item.id === form.ranchCropSeasonId),
+    [ranchCropSeasonOptions, form.ranchCropSeasonId],
+  )
+
+  const selectedCrop = useMemo(
+    () => catalog.crops.find((item) => item.id === selectedRanchCropSeason?.cropId),
+    [catalog.crops, selectedRanchCropSeason?.cropId],
+  )
+
+  const selectedSeason = useMemo(
+    () => catalog.seasons.find((item) => item.id === selectedRanchCropSeason?.seasonId),
+    [catalog.seasons, selectedRanchCropSeason?.seasonId],
+  )
+
+  const handleRanchChange = (ranchoId: string) => {
+    const nextOptions = catalog.ranchCropSeasons.filter((item) => item.ranchId === ranchoId)
+    setForm((prev) => ({
+      ...prev,
+      ranchoId,
+      sectorId: '',
+      ranchCropSeasonId: nextOptions[0]?.id ?? '',
+    }))
+  }
 
   const handleSave = async () => {
     setFormError('')
 
-    if (!form.fecha || !form.ranchoId || !form.cropId || !form.seasonId || !form.sectorId || !form.actividad) {
-      setFormError('Completa fecha, contexto y actividad.')
-      return
-    }
-    if (form.cantidadTotal <= 0) {
-      setFormError('La cantidad total debe ser mayor a cero.')
+    if (!form.fecha || !form.ranchoId || !form.ranchCropSeasonId || !form.manejoAgronomico.trim()) {
+      setFormError('Completa fecha, rancho, variedad y manejo agronómico.')
       return
     }
 
-    const validCuadrilla = cuadrilla.filter((row) => row.empleadoId && row.unidades > 0)
-    if (validCuadrilla.length === 0) {
-      setFormError('Agrega al menos un empleado con unidades mayores a cero.')
+    if (!selectedRanchCropSeason) {
+      setFormError('Selecciona una variedad válida para el rancho.')
+      return
+    }
+
+    const validDetalle = detalle.filter(
+      (row) => row.empaque.trim() || row.cajas > 0 || row.rechazos > 0 || row.kgProceso > 0 || row.rendimiento > 0,
+    )
+
+    if (validDetalle.length === 0) {
+      setFormError('Agrega al menos una fila de detalle con información de rendimiento.')
+      return
+    }
+
+    if (validDetalle.some((row) => !row.empaque.trim())) {
+      setFormError('Cada fila del detalle debe incluir empaque.')
       return
     }
 
     try {
       const cosechaId = await saveNewCosecha({
-        ...form,
-        cantidadTotal: Number(form.cantidadTotal),
-        cuadrilla: validCuadrilla,
+        fecha: form.fecha,
+        ranchoId: form.ranchoId,
+        cropId: selectedRanchCropSeason.cropId,
+        seasonId: selectedRanchCropSeason.seasonId,
+        sectorId: form.sectorId || undefined,
+        ranchCropSeasonId: form.ranchCropSeasonId,
+        manejoAgronomico: form.manejoAgronomico,
+        notes: form.notes,
+        detalle: validDetalle,
       })
 
-      setToast('Cosecha guardada y work_logs generados para Nómina.')
+      setToast('Cosecha guardada como registro de rendimiento.')
       window.setTimeout(() => navigate(`/cosechas/${cosechaId}`), 700)
     } catch {
       // error displayed by store
@@ -107,7 +110,7 @@ export function CosechasCrearPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-gray-900">Crear cosecha</h1>
-        <p className="text-sm text-gray-500">Al guardar se crean registros en Nómina/Pagos por empleado.</p>
+        <p className="text-sm text-gray-500">Registra el rendimiento agrícola por rancho con encabezado y tabla de detalle.</p>
       </div>
 
       {formError ? <Toast variant="error">{formError}</Toast> : null}
@@ -116,60 +119,69 @@ export function CosechasCrearPage() {
       {toast ? <Toast variant="success">{toast}</Toast> : null}
 
       <Card>
-        <div className="grid gap-3 md:grid-cols-3">
-          <Input type="date" value={form.fecha} onChange={(event) => setForm((prev) => ({ ...prev, fecha: event.target.value }))} />
-          <select className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={form.ranchoId} onChange={(event) => setForm((prev) => ({ ...prev, ranchoId: event.target.value, sectorId: '' }))}>
-            <option value="">Rancho</option>
-            {catalog.ranches.map((ranch) => <option key={ranch.id} value={ranch.id}>{ranch.name}</option>)}
-          </select>
-          <select className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={form.sectorId} onChange={(event) => setForm((prev) => ({ ...prev, sectorId: event.target.value }))}>
-            <option value="">Sector</option>
-            {sectores.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
-          </select>
-          <select className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={form.cropId} onChange={(event) => setForm((prev) => ({ ...prev, cropId: event.target.value }))}>
-            <option value="">Cultivo</option>
-            {catalog.crops.map((crop) => <option key={crop.id} value={crop.id}>{crop.name}</option>)}
-          </select>
-          <select className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={form.seasonId} onChange={(event) => setForm((prev) => ({ ...prev, seasonId: event.target.value }))}>
-            <option value="">Temporada</option>
-            {catalog.seasons.map((season) => <option key={season.id} value={season.id}>{season.name}</option>)}
-          </select>
-          <Input placeholder="Unidad (kg/caja/etc)" value={form.unidad} onChange={(event) => setForm((prev) => ({ ...prev, unidad: event.target.value }))} />
-          <Input type="number" min={0} step="any" placeholder="Cantidad total" value={form.cantidadTotal || ''} onChange={(event) => setForm((prev) => ({ ...prev, cantidadTotal: Number(event.target.value) }))} />
-          <select className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={form.actividad} onChange={(event) => setForm((prev) => ({ ...prev, actividad: event.target.value }))}>
-            <option value="">Actividad (tabulador)</option>
-            {actividades.map((actividad) => <option key={`${actividad.actividad}-${actividad.unidad}`} value={actividad.actividad}>{actividad.actividad}</option>)}
-          </select>
-          <Input placeholder="Notas" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Encabezado de la cosecha</h2>
+            <p className="text-sm text-gray-500">Define el contexto agrícola antes de capturar el rendimiento.</p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <Input type="date" value={form.fecha} onChange={(event) => setForm((prev) => ({ ...prev, fecha: event.target.value }))} />
+            <select
+              className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+              value={form.ranchoId}
+              onChange={(event) => handleRanchChange(event.target.value)}
+            >
+              <option value="">Rancho</option>
+              {catalog.ranches.map((ranch) => <option key={ranch.id} value={ranch.id}>{ranch.name}</option>)}
+            </select>
+            <select
+              className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+              value={form.ranchCropSeasonId}
+              onChange={(event) => setForm((prev) => ({ ...prev, ranchCropSeasonId: event.target.value }))}
+              disabled={!form.ranchoId}
+            >
+              <option value="">Variedad</option>
+              {ranchCropSeasonOptions.map((assignment) => (
+                <option key={assignment.id} value={assignment.id}>
+                  {(assignment.variety?.trim() || 'Sin variedad')} · {catalog.crops.find((crop) => crop.id === assignment.cropId)?.name || 'Cultivo'} · {catalog.seasons.find((season) => season.id === assignment.seasonId)?.name || 'Temporada'}
+                </option>
+              ))}
+            </select>
+            <Input
+              placeholder="Manejo agronómico"
+              value={form.manejoAgronomico}
+              onChange={(event) => setForm((prev) => ({ ...prev, manejoAgronomico: event.target.value }))}
+            />
+            <select
+              className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm"
+              value={form.sectorId}
+              onChange={(event) => setForm((prev) => ({ ...prev, sectorId: event.target.value }))}
+              disabled={!form.ranchoId}
+            >
+              <option value="">Sector (opcional)</option>
+              {sectores.map((sector) => <option key={sector.id} value={sector.id}>{sector.name}</option>)}
+            </select>
+            <Input placeholder="Notas (opcional)" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
+          </div>
+
+          <div className="grid gap-3 rounded-2xl border border-dashed border-[#E5E7EB] bg-[#F9FAFB] p-4 text-sm text-gray-600 md:grid-cols-3">
+            <p><span className="font-medium text-gray-900">Cultivo:</span> {selectedCrop?.name ?? 'Selecciona variedad'}</p>
+            <p><span className="font-medium text-gray-900">Temporada:</span> {selectedSeason?.name ?? 'Selecciona variedad'}</p>
+            <p><span className="font-medium text-gray-900">Variedad:</span> {selectedRanchCropSeason?.variety?.trim() || 'Selecciona variedad'}</p>
+          </div>
         </div>
-        {selectedActivity ? <p className="mt-3 text-xs text-gray-500">Tarifa configurada en nómina para esta actividad: unidad base {selectedActivity.unidad}.</p> : null}
       </Card>
 
       <Card>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Cuadrilla</h2>
-          <Button variant="ghost" onClick={() => setCuadrilla((prev) => [...prev, { empleadoId: '', unidades: 0 }])}>Agregar empleado</Button>
-        </div>
-        <div className="mt-4 space-y-3">
-          {cuadrilla.map((row, index) => (
-            <div key={`${index}-${row.empleadoId}`} className="grid gap-3 md:grid-cols-[2fr_1fr_auto]">
-              <select className="rounded-full border border-[#E5E7EB] bg-white px-4 py-2 text-sm" value={row.empleadoId} onChange={(event) => handleCuadrillaChange(index, 'empleadoId', event.target.value)}>
-                <option value="">Empleado</option>
-                {empleados.map((empleado) => <option key={empleado.id} value={empleado.id}>{empleado.nombreCompleto}</option>)}
-              </select>
-              <Input type="number" min={0} step="any" placeholder="Unidades / días" value={row.unidades || ''} onChange={(event) => handleCuadrillaChange(index, 'unidades', event.target.value)} />
-              <Button variant="ghost" onClick={() => setCuadrilla((prev) => prev.filter((_, i) => i !== index))}>Quitar</Button>
-            </div>
-          ))}
-        </div>
+        <CosechaRendimientoTable rows={detalle} onChange={setDetalle} />
 
         <div className="mt-5 flex justify-end">
-          <Button onClick={() => void handleSave()} disabled={isSaving || loadingCatalog}>{isSaving ? 'Guardando...' : loadingCatalog ? 'Cargando catálogo...' : 'Guardar cosecha'}</Button>
+          <Button onClick={() => void handleSave()} disabled={isSaving || loadingCatalog}>
+            {isSaving ? 'Guardando...' : loadingCatalog ? 'Cargando catálogo...' : 'Guardar cosecha'}
+          </Button>
         </div>
       </Card>
-
-      {!loadingCatalog && !selectedRanch && form.ranchoId ? <p className="text-xs text-gray-500">No se encontró el rancho seleccionado.</p> : null}
-      {!loadingCatalog && !selectedSector && form.sectorId ? <p className="text-xs text-gray-500">No se encontró el sector seleccionado.</p> : null}
     </div>
   )
 }
