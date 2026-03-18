@@ -5,13 +5,13 @@ import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
 import { deleteOperationSupabase, upsertOperationSupabase } from '../../../lib/operationCatalog/supabaseRepo'
 import { CrudShell, DeleteModal, ModalActions, stopSubmit, useCrudFeedback } from './shared'
-import { getOperationSeasonSummaries } from './structureUtils'
+import { formatSeasonDurationDays, getOperationSeason, getOperationSeasonSummaries } from './structureUtils'
 import { useStructureCatalog } from './useStructureCatalog'
 
 export function OperacionesPage() {
   const { catalog, isLoading, loadError, organizationId, reload } = useStructureCatalog()
   const [query, setQuery] = useState('')
-  const [form, setForm] = useState({ id: '', name: '', description: '' })
+  const [form, setForm] = useState({ id: '', name: '', description: '', seasonId: '', seasonName: '', seasonDescription: '', startDate: '', endDate: '' })
   const [modalOpen, setModalOpen] = useState(false)
   const [deleteId, setDeleteId] = useState('')
   const feedback = useCrudFeedback()
@@ -24,7 +24,7 @@ export function OperacionesPage() {
       searchPlaceholder="Buscar operación"
       query={query}
       setQuery={setQuery}
-      onNew={() => { setForm({ id: '', name: '', description: '' }); setModalOpen(true) }}
+      onNew={() => { setForm({ id: '', name: '', description: '', seasonId: '', seasonName: '', seasonDescription: '', startDate: '', endDate: '' }); setModalOpen(true) }}
       rows={rows}
       toastMessage={feedback.toastMessage}
       errorMessage={feedback.errorMessage || loadError}
@@ -42,17 +42,19 @@ export function OperacionesPage() {
                 <div className="mt-2 space-y-1 text-xs text-gray-500">
                   {seasonSummaries.length > 0 ? (
                     seasonSummaries.map((season) => (
-                      <p key={season.key}>
-                        Temporada: {season.seasonName} · {season.durationLabel}
-                      </p>
+                      <div key={season.key}>
+                        <p>Temporada: {season.seasonName}</p>
+                        <p>Rango: {season.dateRangeLabel}</p>
+                        <p>Duración prevista: {season.durationLabel}</p>
+                      </div>
                     ))
                   ) : (
-                    <p>Temporada prevista: sin asignaciones de cultivo/temporada.</p>
+                    <p>Temporada prevista: sin temporada configurada.</p>
                   )}
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="secondary" onClick={() => { setForm({ id: item.id, name: item.name, description: item.description || '' }); setModalOpen(true) }}>Editar</Button>
+                <Button variant="secondary" onClick={() => { const season = getOperationSeason(item.id, catalog); setForm({ id: item.id, name: item.name, description: item.description || '', seasonId: season?.id || '', seasonName: season?.name || '', seasonDescription: season?.description || '', startDate: season?.startDate || '', endDate: season?.endDate || '' }); setModalOpen(true) }}>Editar</Button>
                 <Button variant="secondary" onClick={() => setDeleteId(item.id)}>Eliminar</Button>
               </div>
             </div>
@@ -64,7 +66,18 @@ export function OperacionesPage() {
         <form
           onSubmit={stopSubmit(() => feedback.run(async () => {
             if (!organizationId) throw new Error('Perfil sin organización asignada.')
-            await upsertOperationSupabase(organizationId, form)
+            await upsertOperationSupabase(organizationId, {
+              id: form.id,
+              name: form.name,
+              description: form.description,
+              season: {
+                id: form.seasonId,
+                name: form.seasonName,
+                description: form.seasonDescription,
+                startDate: form.startDate,
+                endDate: form.endDate,
+              },
+            })
             await reload()
             setModalOpen(false)
           }, 'Operación guardada.'))}
@@ -72,6 +85,10 @@ export function OperacionesPage() {
         >
           <Input placeholder="Nombre" value={form.name} onChange={(event) => setForm((prev) => ({ ...prev, name: event.target.value }))} />
           <Input placeholder="Descripción" value={form.description} onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))} />
+          <Input placeholder="Temporada" value={form.seasonName} onChange={(event) => setForm((prev) => ({ ...prev, seasonName: event.target.value }))} />
+          <Input type="date" value={form.startDate} onChange={(event) => setForm((prev) => ({ ...prev, startDate: event.target.value }))} />
+          <Input type="date" value={form.endDate} onChange={(event) => setForm((prev) => ({ ...prev, endDate: event.target.value }))} />
+          <p className="px-1 text-xs text-gray-500">Duración prevista: {formatSeasonDurationDays({ startDate: form.startDate, endDate: form.endDate, id: form.seasonId || 'preview', name: form.seasonName })}</p>
           <ModalActions onClose={() => setModalOpen(false)} />
         </form>
       </Modal>

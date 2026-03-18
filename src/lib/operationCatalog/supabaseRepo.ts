@@ -7,7 +7,7 @@ type DbSector = { id: string; ranch_id: string; name: string; description: strin
 type DbTunnel = { id: string; sector_id: string; name: string; description: string | null; code: string | null; number: number | null }
 type DbValve = { id: string; sector_id: string; tunnel_id: string | null; name: string; description: string | null; code: string | null; number: number | null }
 type DbCrop = { id: string; name: string; description: string | null }
-type DbSeason = { id: string; label: string; description: string | null; start_date: string; end_date: string }
+type DbSeason = { id: string; operation_id: string | null; label: string; description: string | null; start_date: string; end_date: string }
 type DbRanchCropSeason = { id: string; ranch_id: string; crop_id: string; season_id: string; variety: string | null }
 
 type RanchStructureSectorInput = {
@@ -46,7 +46,7 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
     supabase.from('tunnels').select('id, sector_id, name, code, description, number').eq('organization_id', organizationId).order('number', { ascending: true, nullsFirst: false }),
     supabase.from('valves').select('id, sector_id, tunnel_id, name, code, description, number').eq('organization_id', organizationId).order('number', { ascending: true, nullsFirst: false }),
     supabase.from('crops').select('id, name, description').eq('organization_id', organizationId).order('name', { ascending: true }),
-    supabase.from('seasons').select('id, label, start_date, end_date, description').eq('organization_id', organizationId).order('start_date', { ascending: false }),
+    supabase.from('seasons').select('id, operation_id, label, start_date, end_date, description').eq('organization_id', organizationId).order('start_date', { ascending: false }),
     supabase.from('ranch_crop_seasons').select('id, ranch_id, crop_id, season_id, variety').eq('organization_id', organizationId),
   ])
 
@@ -93,6 +93,7 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
     crops: ((cropsResult.data ?? []) as DbCrop[]).map((item): Crop => ({ id: item.id, name: item.name, description: item.description ?? undefined })),
     seasons: ((seasonsResult.data ?? []) as DbSeason[]).map((item): Season => ({
       id: item.id,
+      operationId: item.operation_id ?? undefined,
       name: item.label,
       description: item.description ?? undefined,
       startDate: item.start_date,
@@ -108,11 +109,61 @@ export async function getCatalogFromSupabase(organizationId: string): Promise<Op
   }
 }
 
-export async function upsertOperationSupabase(organizationId: string, payload: Omit<Operation, 'createdAt'>) {
+type OperationUpsertPayload = Omit<Operation, 'createdAt'> & {
+  season: Pick<Season, 'id' | 'name' | 'description' | 'startDate' | 'endDate'>
+}
+
+function ensureDateRange(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`)
+  const end = new Date(`${endDate}T00:00:00Z`)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) throw new Error('Selecciona fechas válidas para la temporada.')
+  if (end.getTime() < start.getTime()) throw new Error('La fecha de fin debe ser igual o posterior a la fecha de inicio.')
+}
+
+export async function upsertOperationSupabase(organizationId: string, payload: OperationUpsertPayload) {
   const name = requireText(payload.name, 'El nombre de la operación es requerido.')
-  const upsertPayload = { id: payload.id || undefined, organization_id: organizationId, name, description: payload.description?.trim() || null }
-  const { error } = await supabase.from('operations').upsert(upsertPayload)
-  throwIfError(error)
+  const seasonName = requireText(payload.season.name, 'El nombre de la temporada es requerido.')
+  if (!payload.season.startDate || !payload.season.endDate) throw new Error('Selecciona fecha de inicio y fin para la temporada.')
+  ensureDateRange(payload.season.startDate, payload.season.endDate)
+
+  const operationPayload = {
+    id: payload.id || undefined,
+    organization_id: organizationId,
+    name,
+    description: payload.description?.trim() || null,
+  }
+
+  const operationResult = await supabase.from('operations').upsert(operationPayload).select('id').single()
+  throwIfError(operationResult.error)
+
+  const operationId = (operationResult.data as { id: string } | null)?.id
+  if (!operationId) throw new Error('No se pudo obtener la operación guardada.')
+
+  let seasonId = payload.season.id || undefined
+  if (!seasonId) {
+    const existingSeasonResult = await supabase
+      .from('seasons')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('operation_id', operationId)
+      .maybeSingle()
+
+    throwIfError(existingSeasonResult.error)
+    seasonId = (existingSeasonResult.data as { id: string } | null)?.id || undefined
+  }
+
+  const seasonPayload = {
+    id: seasonId,
+    organization_id: organizationId,
+    operation_id: operationId,
+    label: seasonName,
+    start_date: payload.season.startDate,
+    end_date: payload.season.endDate,
+    description: payload.season.description?.trim() || null,
+  }
+
+  const seasonResult = await supabase.from('seasons').upsert(seasonPayload)
+  throwIfError(seasonResult.error)
 }
 
 export async function deleteOperationSupabase(id: string) { const { error } = await supabase.from('operations').delete().eq('id', id); throwIfError(error) }
