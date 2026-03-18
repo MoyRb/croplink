@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 
+import { calculateProcessPercentage, calculateTotalProcessPercentage } from '../cosechas/processMetrics'
 import { supabase } from '../supabaseClient'
 
 export type CuadrillaEntry = {
@@ -145,16 +146,21 @@ const sanitizeHarvestDetail = (entry: HarvestDetailEntry): HarvestDetailEntry =>
   cajas: Math.max(Number(entry.cajas) || 0, 0),
   rechazos: Math.max(Number(entry.rechazos) || 0, 0),
   kgProceso: Math.max(Number(entry.kgProceso) || 0, 0),
-  rendimiento: Math.max(Number(entry.rendimiento) || 0, 0),
+  rendimiento: 0,
 })
 
 const summarizeHarvestDetail = (detalle: HarvestDetailEntry[]) => {
-  const sanitized = detalle.map(sanitizeHarvestDetail)
+  const sanitized = detalle.map((entry) => {
+    const normalized = sanitizeHarvestDetail(entry)
+    return {
+      ...normalized,
+      rendimiento: calculateProcessPercentage(normalized),
+    }
+  })
   const totalCajas = sanitized.reduce((sum, row) => sum + row.cajas, 0)
   const totalRechazos = sanitized.reduce((sum, row) => sum + row.rechazos, 0)
   const totalKgProceso = sanitized.reduce((sum, row) => sum + row.kgProceso, 0)
-  const promedioRendimiento =
-    sanitized.length > 0 ? sanitized.reduce((sum, row) => sum + row.rendimiento, 0) / sanitized.length : 0
+  const promedioRendimiento = calculateTotalProcessPercentage(sanitized)
 
   return {
     detalle: sanitized,

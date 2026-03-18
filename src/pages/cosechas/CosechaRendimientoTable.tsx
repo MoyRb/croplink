@@ -1,6 +1,11 @@
 import { Button } from '../../components/ui/Button'
 import { Input } from '../../components/ui/Input'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
+import {
+  calculateProcessPercentage,
+  calculateTotalProcessPercentage,
+  getProcessAlertClassName,
+} from '../../lib/cosechas/processMetrics'
 import type { HarvestDetailEntry } from '../../lib/store/cosechas'
 import { createEmptyHarvestDetail } from './cosechaRendimientoTableUtils'
 
@@ -10,11 +15,10 @@ type Props = {
   indicadorLabel?: string
 }
 
-const numberFields: Array<keyof Pick<HarvestDetailEntry, 'cajas' | 'rechazos' | 'kgProceso' | 'rendimiento'>> = [
+const numberFields: Array<keyof Pick<HarvestDetailEntry, 'cajas' | 'rechazos' | 'kgProceso'>> = [
   'cajas',
   'rechazos',
   'kgProceso',
-  'rendimiento',
 ]
 
 const normalizeRows = (rows: HarvestDetailEntry[]) =>
@@ -24,18 +28,20 @@ const normalizeRows = (rows: HarvestDetailEntry[]) =>
     cajas: Number.isFinite(row.cajas) ? row.cajas : 0,
     rechazos: Number.isFinite(row.rechazos) ? row.rechazos : 0,
     kgProceso: Number.isFinite(row.kgProceso) ? row.kgProceso : 0,
-    rendimiento: Number.isFinite(row.rendimiento) ? row.rendimiento : 0,
+    rendimiento: calculateProcessPercentage(row),
   }))
 
-const totals = (rows: HarvestDetailEntry[]) => ({
-  cajas: rows.reduce((sum, row) => sum + row.cajas, 0),
-  rechazos: rows.reduce((sum, row) => sum + row.rechazos, 0),
-  kgProceso: rows.reduce((sum, row) => sum + row.kgProceso, 0),
-  rendimiento: rows.length > 0 ? rows.reduce((sum, row) => sum + row.rendimiento, 0) / rows.length : 0,
-})
+const totals = (rows: HarvestDetailEntry[]) => {
+  const cajas = rows.reduce((sum, row) => sum + row.cajas, 0)
+  const rechazos = rows.reduce((sum, row) => sum + row.rechazos, 0)
+  const kgProceso = rows.reduce((sum, row) => sum + row.kgProceso, 0)
+  const rendimiento = calculateTotalProcessPercentage(rows)
+
+  return { cajas, rechazos, kgProceso, rendimiento }
+}
 
 
-export function CosechaRendimientoTable({ rows, onChange, indicadorLabel = 'Rendimiento (%)' }: Props) {
+export function CosechaRendimientoTable({ rows, onChange, indicadorLabel = '% Proceso' }: Props) {
   const editable = typeof onChange === 'function'
   const normalizedRows = normalizeRows(rows)
   const summary = totals(normalizedRows)
@@ -130,15 +136,7 @@ export function CosechaRendimientoTable({ rows, onChange, indicadorLabel = 'Rend
                 ) : row.kgProceso}
               </TableCell>
               <TableCell>
-                {editable ? (
-                  <Input
-                    type="number"
-                    min={0}
-                    step="any"
-                    value={row.rendimiento || ''}
-                    onChange={(event) => handleChange(index, 'rendimiento', event.target.value)}
-                  />
-                ) : row.rendimiento}
+                <span className={getProcessAlertClassName(row.rendimiento)}>{row.rendimiento.toFixed(2)}</span>
               </TableCell>
               {editable ? (
                 <TableCell>
@@ -158,7 +156,7 @@ export function CosechaRendimientoTable({ rows, onChange, indicadorLabel = 'Rend
             <TableCell className="font-semibold text-gray-900">{summary.cajas}</TableCell>
             <TableCell className="font-semibold text-gray-900">{summary.rechazos}</TableCell>
             <TableCell className="font-semibold text-gray-900">{summary.kgProceso}</TableCell>
-            <TableCell className="font-semibold text-gray-900">{summary.rendimiento.toFixed(2)}</TableCell>
+            <TableCell className={getProcessAlertClassName(summary.rendimiento)}>{summary.rendimiento.toFixed(2)}</TableCell>
             {editable ? <TableCell /> : null}
           </TableRow>
         </tbody>

@@ -77,7 +77,7 @@ export function CosechasCrearPage() {
     }
 
     const validDetalle = detalle.filter(
-      (row) => row.empaque.trim() || row.cajas > 0 || row.rechazos > 0 || row.kgProceso > 0 || row.rendimiento > 0,
+      (row) => row.empaque.trim() || row.cajas > 0 || row.rechazos > 0 || row.kgProceso > 0,
     )
 
     if (validDetalle.length === 0) {

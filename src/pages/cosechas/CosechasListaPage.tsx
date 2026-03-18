@@ -19,7 +19,7 @@ const buildResumen = (item: {
   unidad: string
 }) => {
   if (item.detalle.length === 0) return `${formatNumber(item.cantidadTotal)} ${item.unidad}`
-  return `${item.detalle.length} filas · ${formatNumber(item.totalCajas)} cajas · ${formatNumber(item.totalRechazos)} rechazos · ${formatNumber(item.totalKgProceso)} kg proceso · ${formatNumber(item.promedioRendimiento)}% rendimiento`
+  return `${item.detalle.length} filas · ${formatNumber(item.totalCajas)} cajas · ${formatNumber(item.totalRechazos)} rechazos · ${formatNumber(item.totalKgProceso)} kg proceso · ${formatNumber(item.promedioRendimiento)}% proceso`
 }
 
 export function CosechasListaPage() {
