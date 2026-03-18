@@ -12,6 +12,8 @@ export type RecomendacionProducto = {
   sector: string
   dosePerHa?: number | null
   doseUnit?: string | null
+  intervalo?: string | null
+  reentrada?: string | null
 }
 
 export type RecomendacionViaRiegoFila = {
@@ -25,15 +27,20 @@ export type Recomendacion = {
   id: string
   modo: RecommendationMode
   estado: RecommendationStatus
+  numero: string
   titulo: string
   huerta: string
   superficie: string
   solicita: string
   modoAplicacion: string
   justificacion: string
+  clasificacion: string
+  contenedor: string
+  volumenAguaHa: string
   fechaRecomendacion: string
   semana: string
   equipoAplicacion: string
+  empleadoRecibe: string
   operario: string
   fechaAplicacion: string
   phMezcla: string
@@ -96,29 +103,49 @@ const appModeToDb = (mode: RecommendationMode): RecommendationRow['mode'] =>
   mode === 'VIA_RIEGO' ? 'via_riego' : 'foliar_drench'
 
 const toStr = (value: unknown) => (typeof value === 'string' ? value : '')
+const toOptionalStr = (value: unknown) => {
+  const str = toStr(value).trim()
+  return str ? str : null
+}
 
 const getNestedName = (value: { name: string | null }[] | { name: string | null } | null | undefined) =>
   Array.isArray(value) ? value[0]?.name ?? '' : value?.name ?? ''
+
+const pickHeaderValue = (headerExtra: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) {
+    const value = headerExtra[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+    const str = toStr(value).trim()
+    if (str) return str
+  }
+  return ''
+}
 
 const mapRecommendation = (row: RecommendationRow, products: ProductRow[], irrigationRows: IrrigationRow[]): Recomendacion => {
   const headerExtra = row.header_extra ?? {}
   const dosisPorHa = Array.isArray(headerExtra.dosisPorHa)
     ? headerExtra.dosisPorHa.map((item) => toStr(item))
     : Array.from({ length: 10 }, () => '')
+  const numero = pickHeaderValue(headerExtra, ['numero', 'folio', 'recommendation_number']) || row.id.slice(0, 8).toUpperCase()
 
   return {
     id: row.id,
     modo: dbModeToApp(row.mode),
     estado: row.status,
+    numero,
     titulo: row.title ?? '',
     huerta: toStr(headerExtra.huerta) || getNestedName(row.ranches) || '',
     superficie: toStr(headerExtra.superficie) || (row.superficie != null ? String(row.superficie) : ''),
     solicita: row.solicita ?? '',
     modoAplicacion: row.modo_aplicacion ?? '',
     justificacion: row.justificacion ?? '',
+    clasificacion: pickHeaderValue(headerExtra, ['clasificacion', 'classification', 'tipo']),
+    contenedor: pickHeaderValue(headerExtra, ['contenedor', 'container', 'tank']),
+    volumenAguaHa: pickHeaderValue(headerExtra, ['volumenAguaHa', 'volumen_agua_ha', 'aguaPorHa', 'agua_por_ha', 'waterVolumePerHa']),
     fechaRecomendacion: row.fecha_recomendacion ?? '',
     semana: row.semana != null ? String(row.semana) : '',
     equipoAplicacion: row.equipo_aplicacion ?? '',
+    empleadoRecibe: pickHeaderValue(headerExtra, ['empleadoRecibe', 'empleado_recibe', 'recibe', 'receivedBy']),
     operario: row.operario ?? '',
     fechaAplicacion: row.fecha_aplicacion ?? '',
     phMezcla: row.ph_mezcla != null ? String(row.ph_mezcla) : '',
@@ -134,6 +161,8 @@ const mapRecommendation = (row: RecommendationRow, products: ProductRow[], irrig
       sector: item.notes ?? '',
       dosePerHa: item.dose_per_ha ?? null,
       doseUnit: item.dose_unit ?? null,
+      intervalo: toOptionalStr(item.dosis?.intervalo ?? item.gasto?.intervalo ?? item.gasto_total?.intervalo),
+      reentrada: toOptionalStr(item.dosis?.reentrada ?? item.gasto?.reentrada ?? item.gasto_total?.reentrada),
     })),
     dosisPorHa,
     riegoFilas: irrigationRows.map((item) => ({
@@ -185,9 +214,11 @@ const upsertCalendarEvent = async (recommendationId: string, organizationId: str
 }
 
 export const getRecomendaciones = async () => {
+  const organizationId = await getProfileOrg()
   const { data, error } = await supabase
     .from('recommendations')
     .select('id, mode, status, title, fecha_recomendacion, solicita, modo_aplicacion, created_at, header_extra, ranches(name)')
+    .eq('organization_id', organizationId)
     .order('created_at', { ascending: false })
 
   if (error) throw new Error(error.message)
@@ -198,10 +229,12 @@ export const getRecomendaciones = async () => {
 }
 
 export const getRecomendacionById = async (id: string) => {
+  const organizationId = await getProfileOrg()
   const { data: rec, error: recError } = await supabase
     .from('recommendations')
     .select('id, mode, status, title, solicita, modo_aplicacion, justificacion, fecha_recomendacion, semana, equipo_aplicacion, operario, fecha_aplicacion, ph_mezcla, hora_inicio, hora_fin, comentarios, superficie, header_extra, created_at, ranches(name)')
     .eq('id', id)
+    .eq('organization_id', organizationId)
     .maybeSingle<RecommendationRow>()
 
   if (recError) throw new Error(recError.message)
@@ -212,11 +245,13 @@ export const getRecomendacionById = async (id: string) => {
       .from('recommendation_products')
       .select('product_name, active_ingredient, dosis, gasto, gasto_total, notes, dose_per_ha, dose_unit')
       .eq('recommendation_id', id)
+      .eq('organization_id', organizationId)
       .order('sort_order', { ascending: true }),
     supabase
       .from('recommendation_irrigation_rows')
       .select('surface, products, sectors(name), valves(name)')
       .eq('recommendation_id', id)
+      .eq('organization_id', organizationId)
       .order('sort_order', { ascending: true }),
   ])
 
@@ -259,8 +294,13 @@ export const createRecomendacion = async (payload: Omit<Recomendacion, 'id' | 'c
       superficie: Number.isFinite(safeSurface) ? safeSurface : null,
       requested_by: authData.user.id,
       header_extra: {
+        numero: payload.numero,
         huerta: payload.huerta,
         superficie: payload.superficie,
+        clasificacion: payload.clasificacion,
+        contenedor: payload.contenedor,
+        volumenAguaHa: payload.volumenAguaHa,
+        empleadoRecibe: payload.empleadoRecibe,
         dosisPorHa: payload.dosisPorHa,
       },
     })
@@ -324,6 +364,7 @@ export const updateRecomendacionSeguimiento = async (
       operario: payload.operario || null,
     })
     .eq('id', id)
+    .eq('organization_id', organizationId)
 
   if (error) throw new Error(error.message)
 
@@ -381,10 +422,12 @@ type SectorRow = {
 }
 
 export const getProductosConDosis = async (recommendationId: string): Promise<ProductoConDosis[]> => {
+  const organizationId = await getProfileOrg()
   const { data, error } = await supabase
     .from('recommendation_products')
     .select('id, product_name, active_ingredient, dose_per_ha, dose_unit, sort_order')
     .eq('recommendation_id', recommendationId)
+    .eq('organization_id', organizationId)
     .order('sort_order', { ascending: true })
   if (error) throw new Error(error.message)
   return ((data ?? []) as ProductConDosisRow[]).map((item) => ({
@@ -398,10 +441,12 @@ export const getProductosConDosis = async (recommendationId: string): Promise<Pr
 }
 
 export const updateProductDosisSupabase = async (productId: string, dosePerHa: number | null, doseUnit: string | null) => {
+  const organizationId = await getProfileOrg()
   const { error } = await supabase
     .from('recommendation_products')
     .update({ dose_per_ha: dosePerHa, dose_unit: doseUnit })
     .eq('id', productId)
+    .eq('organization_id', organizationId)
   if (error) throw new Error(error.message)
 }
 
