@@ -25,17 +25,13 @@ type ChartPoint = {
 
 type ChartPointGeom = ChartPoint & { x: number; y: number }
 
-const METRIC_OPTIONS: MetricOption[] = [
-  { value: 'densidad_promedio', label: 'Densidad promedio' },
-  { value: 'brix', label: 'Brix' },
-  { value: 'ph', label: 'pH' },
-  { value: 'longitud_cm', label: 'Longitud (cm)' },
-  { value: 'diametro_tallo_mm', label: 'Diámetro tallo (mm)' },
-  { value: 'diametro_fruto_mm', label: 'Diámetro fruto (mm)' },
-  { value: 'peso_fruto_g', label: 'Peso fruto (g)' },
-  { value: 'raiz_longitud_cm', label: 'Raíz longitud (cm)' },
-  { value: 'raiz_blanca_pct', label: 'Raíz blanca (%)' },
-]
+
+
+const formatMetricLabel = (key: string) =>
+  key
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
 
 const STATUS_LABELS: Record<MonitoringSession['status'], string> = {
   IN_PROGRESS: 'En progreso',
@@ -131,6 +127,22 @@ export function MonitoreosGraficasPage() {
       cancelled = true
     }
   }, [])
+
+  const metricOptions = useMemo<MetricOption[]>(() => {
+    const dynamic = sessions
+      .flatMap((session) => session.config.tablaMuestreo)
+      .filter((row) => !row.key.startsWith('raiz_'))
+      .map((row) => ({ value: row.key, label: row.label }))
+
+    const unique = Array.from(new Map([{ value: 'densidad_promedio', label: 'Densidad promedio' }, ...dynamic].map((item) => [item.value, item])).values())
+    return unique.length > 0 ? unique : [{ value: 'densidad_promedio', label: 'Densidad promedio' }]
+  }, [sessions])
+
+  useEffect(() => {
+    if (!metricOptions.some((option) => option.value === metric)) {
+      setMetric(metricOptions[0]?.value ?? 'densidad_promedio')
+    }
+  }, [metric, metricOptions])
 
   const filteredSessions = useMemo(() => {
     return sessions
@@ -240,7 +252,7 @@ export function MonitoreosGraficasPage() {
     setHoveredPoint({ data: point, cx: clientX - rect.left, cy: clientY - rect.top })
   }
 
-  const metricLabel = METRIC_OPTIONS.find((o) => o.value === metric)?.label ?? metric
+  const metricLabel = metricOptions.find((o) => o.value === metric)?.label ?? formatMetricLabel(metric)
 
   return (
     <div className="space-y-6">
@@ -272,7 +284,7 @@ export function MonitoreosGraficasPage() {
               value={metric}
               onChange={(event) => setMetric(event.target.value)}
             >
-              {METRIC_OPTIONS.map((option) => (
+              {metricOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>

@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { Badge } from '../../components/ui/Badge'
 import { Button } from '../../components/ui/Button'
 import { Card } from '../../components/ui/Card'
-import { getSessions, type MonitoringSession } from '../../lib/monitoreo'
+import { getSamplingSubjectLabel, getSessions, type MonitoringSession } from '../../lib/monitoreo'
 
 const statusLabels: Record<MonitoringSession['status'], string> = {
   IN_PROGRESS: 'En progreso',
@@ -70,10 +70,10 @@ export function MonitoreosListaPage() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="font-semibold text-gray-900">
-                    {session.config.tipoMonitoreo} · {session.config.cultivo}
+                    {getSamplingSubjectLabel(session.config.queMuestrear)} · {session.config.cultivo}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {session.config.rancho} · {new Date(session.createdAt).toLocaleString('es-MX')}
+                    {session.config.rancho} · {session.config.fechaMonitoreo}
                   </p>
                 </div>
                 <Badge variant={session.status === 'COMPLETED' ? 'neutral' : 'success'}>

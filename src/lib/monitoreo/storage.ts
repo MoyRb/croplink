@@ -1,4 +1,5 @@
 import { supabase } from '../supabaseClient'
+import { buildSamplingTable, getMonitoringTypeFromSubject } from './templates'
 import type { Hallazgo, MonitoringPoint, MonitoringSector, MonitoringSession, SessionConfig } from './types'
 
 type ProfileOrgRow = { organization_id: string | null }
@@ -63,6 +64,10 @@ const mapStatusFromDb = (status: MonitoringSessionRow['status']): MonitoringSess
 const mapStatusToDb = (status: MonitoringSession['status']) =>
   status === 'PAUSED' ? 'paused' : status === 'COMPLETED' ? 'completed' : 'in_progress'
 
+const mapLegacyMonitoringTypeToSubject = (
+  monitoringType: MonitoringSessionRow['monitoring_type'],
+): SessionConfig['queMuestrear'] => (monitoringType === 'nutricion' ? 'NUTRICION' : 'DESARROLLO')
+
 const getCurrentUserAndOrganization = async () => {
   const { data: authData, error: authError } = await supabase.auth.getUser()
   if (authError || !authData.user) throw new Error(authError?.message || 'No hay un usuario autenticado.')
@@ -83,14 +88,26 @@ const getCurrentUserAndOrganization = async () => {
 const normalizeConfig = (session: MonitoringSessionRow): SessionConfig => {
   const raw = session.config ?? {}
   const config = (raw.config as Partial<SessionConfig> | undefined) ?? (raw as Partial<SessionConfig>)
+  const queMuestrear = config.queMuestrear ?? mapLegacyMonitoringTypeToSubject(session.monitoring_type)
+  const tipoMonitoreo = config.tipoMonitoreo ?? getMonitoringTypeFromSubject(queMuestrear)
 
-  return {
+  const normalized: SessionConfig = {
+    fechaMonitoreo:
+      typeof config.fechaMonitoreo === 'string' && config.fechaMonitoreo.length > 0
+        ? config.fechaMonitoreo
+        : session.created_at.slice(0, 10),
+    queMuestrear,
     rancho: (config.rancho as string) || '',
+    ranchoId: (config.ranchoId as string) || undefined,
     cultivo: (config.cultivo as string) || '',
+    cultivoId: (config.cultivoId as string) || undefined,
     superficie: typeof config.superficie === 'number' ? config.superficie : undefined,
     sector: (config.sector as string) || '',
+    sectorId: (config.sectorId as string) || undefined,
     tunnel: (config.tunnel as string) || undefined,
+    tunnelId: (config.tunnelId as string) || undefined,
     valve: (config.valve as string) || undefined,
+    valveId: (config.valveId as string) || undefined,
     humedadRelativa: typeof config.humedadRelativa === 'number' ? config.humedadRelativa : undefined,
     temperatura: typeof config.temperatura === 'number' ? config.temperatura : undefined,
     condicionMeteorologica: (session.weather_condition as SessionConfig['condicionMeteorologica']) || 'Soleado',
@@ -98,7 +115,7 @@ const normalizeConfig = (session: MonitoringSessionRow): SessionConfig => {
     puntosPorSector: Number(config.puntosPorSector) || 1,
     plantasPorPunto: Number(config.plantasPorPunto) || 1,
     metrosMuestreados: Number(config.metrosMuestreados) || 1,
-    tipoMonitoreo: session.monitoring_type === 'nutricion' ? 'NUTRICION' : 'DESARROLLO',
+    tipoMonitoreo,
     sistemaProduccion:
       session.production_system === 'suelo'
         ? 'SUELO'
@@ -106,7 +123,22 @@ const normalizeConfig = (session: MonitoringSessionRow): SessionConfig => {
           ? 'HIDROPONICO'
           : undefined,
     umbrales: Array.isArray(config.umbrales) ? (config.umbrales as SessionConfig['umbrales']) : [],
+    tablaMuestreo: Array.isArray(config.tablaMuestreo)
+      ? (config.tablaMuestreo as SessionConfig['tablaMuestreo'])
+      : buildSamplingTable({
+          cultivo: (config.cultivo as string) || '',
+          etapaFenologica: (session.phenological_stage as SessionConfig['etapaFenologica']) || 'vegetativa',
+          queMuestrear,
+          sistemaProduccion:
+            session.production_system === 'suelo'
+              ? 'SUELO'
+              : session.production_system === 'hidroponico'
+                ? 'HIDROPONICO'
+                : undefined,
+        }),
   }
+
+  return normalized
 }
 
 const mapRowsToSession = (
@@ -344,18 +376,35 @@ const persistSessionTree = async (organizationId: string, session: MonitoringSes
 
 export const createSession = async (config: SessionConfig): Promise<MonitoringSession> => {
   const { organizationId } = await getCurrentUserAndOrganization()
-  const session = buildFromConfig(config)
+  const preparedConfig: SessionConfig = {
+    ...config,
+    tipoMonitoreo: getMonitoringTypeFromSubject(config.queMuestrear),
+    tablaMuestreo:
+      config.tablaMuestreo.length > 0
+        ? config.tablaMuestreo
+        : buildSamplingTable({
+            cultivo: config.cultivo,
+            etapaFenologica: config.etapaFenologica,
+            queMuestrear: config.queMuestrear,
+            sistemaProduccion: config.sistemaProduccion,
+          }),
+  }
+  const session = buildFromConfig(preparedConfig)
 
   const { error } = await supabase.from('monitoring_sessions').insert({
     id: session.id,
     organization_id: organizationId,
     status: 'in_progress',
-    monitoring_type: config.tipoMonitoreo === 'NUTRICION' ? 'nutricion' : 'desarrollo',
+    monitoring_type: preparedConfig.tipoMonitoreo === 'NUTRICION' ? 'nutricion' : 'desarrollo',
     production_system:
-      config.sistemaProduccion === 'SUELO' ? 'suelo' : config.sistemaProduccion === 'HIDROPONICO' ? 'hidroponico' : null,
-    weather_condition: config.condicionMeteorologica,
-    phenological_stage: config.etapaFenologica,
-    config,
+      preparedConfig.sistemaProduccion === 'SUELO'
+        ? 'suelo'
+        : preparedConfig.sistemaProduccion === 'HIDROPONICO'
+          ? 'hidroponico'
+          : null,
+    weather_condition: preparedConfig.condicionMeteorologica,
+    phenological_stage: preparedConfig.etapaFenologica,
+    config: preparedConfig,
   })
   if (error) throw new Error(error.message)
 
