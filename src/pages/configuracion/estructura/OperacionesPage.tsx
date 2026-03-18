@@ -5,6 +5,7 @@ import { Input } from '../../../components/ui/Input'
 import { Modal } from '../../../components/ui/Modal'
 import { deleteOperationSupabase, upsertOperationSupabase } from '../../../lib/operationCatalog/supabaseRepo'
 import { CrudShell, DeleteModal, ModalActions, stopSubmit, useCrudFeedback } from './shared'
+import { getOperationSeasonSummaries } from './structureUtils'
 import { useStructureCatalog } from './useStructureCatalog'
 
 export function OperacionesPage() {
@@ -30,16 +31,33 @@ export function OperacionesPage() {
       isLoading={isLoading}
       emptyMessage="No hay operaciones registradas."
       renderRow={(item) => (
-        <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-3">
-          <div>
-            <p className="font-medium">{item.name}</p>
-            <p className="text-xs text-gray-500">Ranchos: {catalog.ranches.filter((entry) => entry.operationId === item.id).length}</p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => { setForm({ id: item.id, name: item.name, description: item.description || '' }); setModalOpen(true) }}>Editar</Button>
-            <Button variant="secondary" onClick={() => setDeleteId(item.id)}>Eliminar</Button>
-          </div>
-        </div>
+        (() => {
+          const seasonSummaries = getOperationSeasonSummaries(item.id, catalog)
+
+          return (
+            <div key={item.id} className="flex items-center justify-between rounded-xl border border-[#E5E7EB] p-3">
+              <div>
+                <p className="font-medium">{item.name}</p>
+                <p className="text-xs text-gray-500">Ranchos: {catalog.ranches.filter((entry) => entry.operationId === item.id).length}</p>
+                <div className="mt-2 space-y-1 text-xs text-gray-500">
+                  {seasonSummaries.length > 0 ? (
+                    seasonSummaries.map((season) => (
+                      <p key={season.key}>
+                        Temporada: {season.seasonName} · {season.durationLabel}
+                      </p>
+                    ))
+                  ) : (
+                    <p>Temporada prevista: sin asignaciones de cultivo/temporada.</p>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="secondary" onClick={() => { setForm({ id: item.id, name: item.name, description: item.description || '' }); setModalOpen(true) }}>Editar</Button>
+                <Button variant="secondary" onClick={() => setDeleteId(item.id)}>Eliminar</Button>
+              </div>
+            </div>
+          )
+        })()
       )}
     >
       <Modal open={modalOpen} title={form.id ? 'Editar operación' : 'Nueva operación'} onClose={() => setModalOpen(false)}>

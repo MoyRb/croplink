@@ -11,6 +11,7 @@ export type Ranch = {
   name: string
   description?: string
   location?: string
+  surfaceHa?: number | null
   createdAt: string
 }
 
@@ -22,6 +23,7 @@ export type Sector = {
   code?: string
   areaHa?: number | null
   number?: number | null
+  tunnelCount?: number | null
 }
 
 export type Tunnel = {
@@ -62,6 +64,7 @@ export type RanchCropSeason = {
   ranchId: string
   cropId: string
   seasonId: string
+  variety?: string
 }
 
 export type OperationCatalog = {
