@@ -7,8 +7,20 @@ import { Input } from '../../components/ui/Input'
 import { Table, TableCell, TableHead, TableRow } from '../../components/ui/Table'
 import { useCosechasStore } from '../../lib/store/cosechas'
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN', maximumFractionDigits: 2 }).format(value)
+const formatNumber = (value: number) => new Intl.NumberFormat('es-MX', { maximumFractionDigits: 2 }).format(value)
+
+const buildResumen = (item: {
+  detalle: Array<unknown>
+  totalCajas: number
+  totalRechazos: number
+  totalKgProceso: number
+  promedioRendimiento: number
+  cantidadTotal: number
+  unidad: string
+}) => {
+  if (item.detalle.length === 0) return `${formatNumber(item.cantidadTotal)} ${item.unidad}`
+  return `${item.detalle.length} filas · ${formatNumber(item.totalCajas)} cajas · ${formatNumber(item.totalRechazos)} rechazos · ${formatNumber(item.totalKgProceso)} kg proceso · ${formatNumber(item.promedioRendimiento)}% rendimiento`
+}
 
 export function CosechasListaPage() {
   const navigate = useNavigate()
@@ -19,7 +31,7 @@ export function CosechasListaPage() {
     const term = search.trim().toLowerCase()
     if (!term) return cosechas
     return cosechas.filter((item) =>
-      [item.actividad, item.ranchoNombre, item.cultivo, item.temporada, item.sectorNombre]
+      [item.ranchoNombre, item.variedad, item.manejoAgronomico, item.cultivo, item.temporada, item.sectorNombre]
         .join(' ')
         .toLowerCase()
         .includes(term),
@@ -31,14 +43,14 @@ export function CosechasListaPage() {
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Cosechas</h1>
-          <p className="text-sm text-gray-500">Control de producción e integración automática a Nómina.</p>
+          <p className="text-sm text-gray-500">Registro de rendimiento agrícola por rancho, sin integración nueva a Nómina.</p>
         </div>
         <Button onClick={() => navigate('/cosechas/crear')}>Nueva cosecha</Button>
       </div>
 
       <Card>
         <div className="flex justify-end">
-          <Input className="max-w-sm" placeholder="Buscar..." value={search} onChange={(event) => setSearch(event.target.value)} />
+          <Input className="max-w-sm" placeholder="Buscar por rancho, variedad o manejo..." value={search} onChange={(event) => setSearch(event.target.value)} />
         </div>
         <div className="mt-4">
           <Table>
@@ -46,23 +58,24 @@ export function CosechasListaPage() {
               <tr>
                 <TableHead>Fecha</TableHead>
                 <TableHead>Rancho</TableHead>
-                <TableHead>Cultivo/Temporada</TableHead>
-                <TableHead>Actividad</TableHead>
-                <TableHead>Cantidad total</TableHead>
-                <TableHead>Total pagado</TableHead>
-                <TableHead>Costo unitario</TableHead>
+                <TableHead>Variedad</TableHead>
+                <TableHead>Manejo agronómico</TableHead>
+                <TableHead>Resumen de rendimiento</TableHead>
               </tr>
             </thead>
             <tbody>
               {filtered.map((item) => (
                 <TableRow key={item.id} className="cursor-pointer" onClick={() => navigate(`/cosechas/${item.id}`)}>
                   <TableCell>{item.fecha}</TableCell>
-                  <TableCell>{item.ranchoNombre}</TableCell>
-                  <TableCell>{item.cultivo} · {item.temporada}</TableCell>
-                  <TableCell>{item.actividad}</TableCell>
-                  <TableCell>{item.cantidadTotal} {item.unidad}</TableCell>
-                  <TableCell>{formatCurrency(item.totalPagado)}</TableCell>
-                  <TableCell>{formatCurrency(item.costoUnitario)}</TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium text-gray-900">{item.ranchoNombre}</p>
+                      <p className="text-xs text-gray-500">{item.cultivo} · {item.temporada}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell>{item.variedad}</TableCell>
+                  <TableCell>{item.manejoAgronomico}</TableCell>
+                  <TableCell>{buildResumen(item)}</TableCell>
                 </TableRow>
               ))}
             </tbody>

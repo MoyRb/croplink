@@ -11,6 +11,15 @@ export type CuadrillaEntry = {
   workLogId?: string
 }
 
+export type HarvestDetailEntry = {
+  id?: string
+  empaque: string
+  cajas: number
+  rechazos: number
+  kgProceso: number
+  rendimiento: number
+}
+
 export type Cosecha = {
   id: string
   fecha: string
@@ -22,6 +31,9 @@ export type Cosecha = {
   temporada: string
   sectorId: string
   sectorNombre: string
+  ranchCropSeasonId?: string
+  variedad: string
+  manejoAgronomico: string
   unidad: string
   cantidadTotal: number
   actividad: string
@@ -29,35 +41,40 @@ export type Cosecha = {
   totalPagado: number
   costoUnitario: number
   notes?: string
+  detalle: HarvestDetailEntry[]
+  totalCajas: number
+  totalRechazos: number
+  totalKgProceso: number
+  promedioRendimiento: number
   cuadrilla: CuadrillaEntry[]
   workLogIds: string[]
   createdAt: string
   updatedAt: string
 }
 
-export type HarvestEmployee = { id: string; nombreCompleto: string }
-export type HarvestActivity = { actividad: string; unidad: string }
-
 export type CreateCosechaPayload = {
   fecha: string
   ranchoId: string
   cropId: string
   seasonId: string
-  sectorId: string
-  unidad: string
-  cantidadTotal: number
-  actividad: string
+  sectorId?: string
+  ranchCropSeasonId?: string
+  manejoAgronomico: string
   notes?: string
-  cuadrilla: Array<{ empleadoId: string; unidades: number }>
+  detalle: HarvestDetailEntry[]
 }
 
 export type UpdateCosechaPayload = {
   id: string
   fecha: string
-  unidad: string
-  cantidadTotal: number
-  actividad: string
+  ranchoId: string
+  cropId: string
+  seasonId: string
+  sectorId?: string
+  ranchCropSeasonId?: string
+  manejoAgronomico: string
   notes?: string
+  detalle: HarvestDetailEntry[]
 }
 
 type ProfileOrgRow = { organization_id: string | null }
@@ -68,7 +85,9 @@ type HarvestRow = {
   ranch_id: string
   crop_id: string
   season_id: string
-  sector_id: string
+  sector_id: string | null
+  ranch_crop_season_id: string | null
+  agronomic_management: string | null
   unit: string
   total_quantity: number
   activity: string
@@ -82,6 +101,17 @@ type HarvestRow = {
   crops: { id: string; name: string } | { id: string; name: string }[] | null
   seasons: { id: string; label: string } | { id: string; label: string }[] | null
   sectors: { id: string; name: string } | { id: string; name: string }[] | null
+  ranch_crop_seasons: { id: string; variety: string | null } | { id: string; variety: string | null }[] | null
+  harvest_entries:
+    | Array<{
+        id: string
+        package: string | null
+        boxes: number | null
+        rejects: number | null
+        process_kg: number | null
+        process_yield: number | null
+      }>
+    | null
   harvest_crews:
     | Array<{
         employee_id: string
@@ -94,18 +124,45 @@ type HarvestRow = {
   harvest_work_logs: Array<{ work_log_id: string }> | null
 }
 
-type ActivityRateRow = {
-  activity: string
-  unit: string
-  rate: number
-  ranch_id: string | null
-  crop_id: string | null
-  season_id: string | null
-}
-
 const fromMaybeArray = <T,>(value: T | T[] | null | undefined): T | null => {
   if (Array.isArray(value)) return value[0] ?? null
   return value ?? null
+}
+
+const normalizeNumber = (value: number | null | undefined) => {
+  const parsed = Number(value ?? 0)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const emptyStringFallback = (value: string | null | undefined, fallback: string) => {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : fallback
+}
+
+const sanitizeHarvestDetail = (entry: HarvestDetailEntry): HarvestDetailEntry => ({
+  id: entry.id,
+  empaque: entry.empaque.trim(),
+  cajas: Math.max(Number(entry.cajas) || 0, 0),
+  rechazos: Math.max(Number(entry.rechazos) || 0, 0),
+  kgProceso: Math.max(Number(entry.kgProceso) || 0, 0),
+  rendimiento: Math.max(Number(entry.rendimiento) || 0, 0),
+})
+
+const summarizeHarvestDetail = (detalle: HarvestDetailEntry[]) => {
+  const sanitized = detalle.map(sanitizeHarvestDetail)
+  const totalCajas = sanitized.reduce((sum, row) => sum + row.cajas, 0)
+  const totalRechazos = sanitized.reduce((sum, row) => sum + row.rechazos, 0)
+  const totalKgProceso = sanitized.reduce((sum, row) => sum + row.kgProceso, 0)
+  const promedioRendimiento =
+    sanitized.length > 0 ? sanitized.reduce((sum, row) => sum + row.rendimiento, 0) / sanitized.length : 0
+
+  return {
+    detalle: sanitized,
+    totalCajas,
+    totalRechazos,
+    totalKgProceso,
+    promedioRendimiento,
+  }
 }
 
 const getCurrentUserAndOrganization = async () => {
@@ -134,13 +191,25 @@ const mapHarvest = (row: HarvestRow): Cosecha => {
   const crop = fromMaybeArray(row.crops)
   const season = fromMaybeArray(row.seasons)
   const sector = fromMaybeArray(row.sectors)
+  const ranchCropSeason = fromMaybeArray(row.ranch_crop_seasons)
+
+  const detalle = (row.harvest_entries ?? []).map((entry) => ({
+    id: entry.id,
+    empaque: emptyStringFallback(entry.package, ''),
+    cajas: normalizeNumber(entry.boxes),
+    rechazos: normalizeNumber(entry.rejects),
+    kgProceso: normalizeNumber(entry.process_kg),
+    rendimiento: normalizeNumber(entry.process_yield),
+  }))
+
+  const resumen = summarizeHarvestDetail(detalle)
 
   const cuadrilla = (row.harvest_crews ?? []).map((crew) => ({
     empleadoId: crew.employee_id,
     empleadoNombre: fromMaybeArray(crew.employees)?.full_name ?? undefined,
-    unidades: Number(crew.units ?? 0),
-    rateUsed: Number(crew.rate_used ?? 0),
-    amount: Number(crew.amount ?? 0),
+    unidades: normalizeNumber(crew.units),
+    rateUsed: normalizeNumber(crew.rate_used),
+    amount: normalizeNumber(crew.amount),
   }))
 
   return {
@@ -152,15 +221,23 @@ const mapHarvest = (row: HarvestRow): Cosecha => {
     cultivo: crop?.name ?? 'Cultivo',
     seasonId: row.season_id,
     temporada: season?.label ?? 'Temporada',
-    sectorId: row.sector_id,
-    sectorNombre: sector?.name ?? 'Sector',
+    sectorId: row.sector_id ?? '',
+    sectorNombre: sector?.name ?? 'Sin sector',
+    ranchCropSeasonId: row.ranch_crop_season_id ?? undefined,
+    variedad: emptyStringFallback(ranchCropSeason?.variety, 'Sin variedad'),
+    manejoAgronomico: emptyStringFallback(row.agronomic_management, 'Sin manejo agronómico'),
     unidad: row.unit,
-    cantidadTotal: Number(row.total_quantity ?? 0),
+    cantidadTotal: normalizeNumber(row.total_quantity),
     actividad: row.activity,
-    tarifa: Number(row.rate_used ?? 0),
-    totalPagado: Number(row.total_paid ?? 0),
-    costoUnitario: Number(row.unit_cost ?? 0),
+    tarifa: normalizeNumber(row.rate_used),
+    totalPagado: normalizeNumber(row.total_paid),
+    costoUnitario: normalizeNumber(row.unit_cost),
     notes: row.notes ?? undefined,
+    detalle: resumen.detalle,
+    totalCajas: resumen.totalCajas,
+    totalRechazos: resumen.totalRechazos,
+    totalKgProceso: resumen.totalKgProceso,
+    promedioRendimiento: resumen.promedioRendimiento,
     cuadrilla,
     workLogIds: (row.harvest_work_logs ?? []).map((item) => item.work_log_id),
     createdAt: row.created_at,
@@ -168,64 +245,40 @@ const mapHarvest = (row: HarvestRow): Cosecha => {
   }
 }
 
-const resolveTarifaActividad = async (params: {
-  organizationId: string
-  actividad: string
-  ranchoId: string
-  cropId: string
-  seasonId: string
-}) => {
-  const { data, error } = await supabase
-    .from('activity_rates')
-    .select('activity, unit, rate, ranch_id, crop_id, season_id')
-    .eq('organization_id', params.organizationId)
-    .ilike('activity', params.actividad)
-
-  if (error) throw new Error(error.message)
-  const matches = ((data ?? []) as ActivityRateRow[]).filter((rate) => {
-    if (rate.ranch_id && rate.ranch_id !== params.ranchoId) return false
-    if (rate.crop_id && rate.crop_id !== params.cropId) return false
-    if (rate.season_id && rate.season_id !== params.seasonId) return false
-    return true
-  })
-
-  if (matches.length === 0) {
-    throw new Error('No existe tarifa de actividad para el contexto seleccionado.')
-  }
-
-  const score = (rate: ActivityRateRow) => (rate.ranch_id ? 4 : 0) + (rate.crop_id ? 2 : 0) + (rate.season_id ? 1 : 0)
-
-  return [...matches].sort((a, b) => score(b) - score(a))[0]
-}
+const harvestSelect = `
+  id,
+  date,
+  ranch_id,
+  crop_id,
+  season_id,
+  sector_id,
+  ranch_crop_season_id,
+  agronomic_management,
+  unit,
+  total_quantity,
+  activity,
+  rate_used,
+  total_paid,
+  unit_cost,
+  notes,
+  created_at,
+  updated_at,
+  ranches:ranch_id (id, name),
+  crops:crop_id (id, name),
+  seasons:season_id (id, label),
+  sectors:sector_id (id, name),
+  ranch_crop_seasons:ranch_crop_season_id (id, variety),
+  harvest_entries (id, package, boxes, rejects, process_kg, process_yield),
+  harvest_crews (employee_id, units, rate_used, amount, employees:employee_id (full_name)),
+  harvest_work_logs (work_log_id)
+`
 
 export async function listCosechas() {
+  const { organizationId } = await getCurrentUserAndOrganization()
   const { data, error } = await supabase
     .from('harvests')
-    .select(
-      `
-      id,
-      date,
-      ranch_id,
-      crop_id,
-      season_id,
-      sector_id,
-      unit,
-      total_quantity,
-      activity,
-      rate_used,
-      total_paid,
-      unit_cost,
-      notes,
-      created_at,
-      updated_at,
-      ranches:ranch_id (id, name),
-      crops:crop_id (id, name),
-      seasons:season_id (id, label),
-      sectors:sector_id (id, name),
-      harvest_crews (employee_id, units, rate_used, amount, employees:employee_id (full_name)),
-      harvest_work_logs (work_log_id)
-      `,
-    )
+    .select(harvestSelect)
+    .eq('organization_id', organizationId)
     .order('date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -234,33 +287,11 @@ export async function listCosechas() {
 }
 
 export async function getCosechaById(id: string) {
+  const { organizationId } = await getCurrentUserAndOrganization()
   const { data, error } = await supabase
     .from('harvests')
-    .select(
-      `
-      id,
-      date,
-      ranch_id,
-      crop_id,
-      season_id,
-      sector_id,
-      unit,
-      total_quantity,
-      activity,
-      rate_used,
-      total_paid,
-      unit_cost,
-      notes,
-      created_at,
-      updated_at,
-      ranches:ranch_id (id, name),
-      crops:crop_id (id, name),
-      seasons:season_id (id, label),
-      sectors:sector_id (id, name),
-      harvest_crews (employee_id, units, rate_used, amount, employees:employee_id (full_name)),
-      harvest_work_logs (work_log_id)
-      `,
-    )
+    .select(harvestSelect)
+    .eq('organization_id', organizationId)
     .eq('id', id)
     .single<HarvestRow>()
 
@@ -272,145 +303,95 @@ export async function getCosechaById(id: string) {
   return mapHarvest(data)
 }
 
-export async function createCosecha(payload: CreateCosechaPayload) {
-  const { organizationId } = await getCurrentUserAndOrganization()
-  const activityRate = await resolveTarifaActividad({
-    organizationId,
-    actividad: payload.actividad,
-    ranchoId: payload.ranchoId,
-    cropId: payload.cropId,
-    seasonId: payload.seasonId,
-  })
+const buildHarvestPayload = (organizationId: string, payload: CreateCosechaPayload | UpdateCosechaPayload) => {
+  const resumen = summarizeHarvestDetail(payload.detalle)
 
-  const tarifa = Number(activityRate.rate ?? 0)
-  const totalPagado = payload.cuadrilla.reduce((sum, row) => sum + row.unidades * tarifa, 0)
-  const costoUnitario = payload.cantidadTotal > 0 ? totalPagado / payload.cantidadTotal : 0
-
-  const { data: createdHarvest, error: harvestError } = await supabase
-    .from('harvests')
-    .insert({
+  return {
+    harvest: {
       organization_id: organizationId,
       date: payload.fecha,
       ranch_id: payload.ranchoId,
       crop_id: payload.cropId,
       season_id: payload.seasonId,
-      sector_id: payload.sectorId,
-      unit: payload.unidad,
-      total_quantity: payload.cantidadTotal,
-      activity: payload.actividad,
-      rate_used: tarifa,
-      total_paid: totalPagado,
-      unit_cost: costoUnitario,
+      sector_id: payload.sectorId || null,
+      ranch_crop_season_id: payload.ranchCropSeasonId || null,
+      agronomic_management: payload.manejoAgronomico.trim(),
+      unit: 'caja',
+      total_quantity: resumen.totalCajas,
+      activity: 'registro_rendimiento',
+      rate_used: 0,
+      total_paid: 0,
+      unit_cost: 0,
       notes: payload.notes?.trim() || null,
-    })
+    },
+    resumen,
+  }
+}
+
+export async function createCosecha(payload: CreateCosechaPayload) {
+  const { organizationId } = await getCurrentUserAndOrganization()
+  const { harvest, resumen } = buildHarvestPayload(organizationId, payload)
+
+  const { data: createdHarvest, error: harvestError } = await supabase
+    .from('harvests')
+    .insert(harvest)
     .select('id')
     .single<{ id: string }>()
 
   if (harvestError || !createdHarvest) throw new Error(harvestError?.message || 'No se pudo crear la cosecha.')
 
-  const crewRows = payload.cuadrilla.map((row) => ({
-    organization_id: organizationId,
-    harvest_id: createdHarvest.id,
-    employee_id: row.empleadoId,
-    units: row.unidades,
-    rate_used: tarifa,
-    amount: row.unidades * tarifa,
-  }))
+  if (resumen.detalle.length > 0) {
+    const detailRows = resumen.detalle.map((row) => ({
+      organization_id: organizationId,
+      harvest_id: createdHarvest.id,
+      package: row.empaque,
+      boxes: row.cajas,
+      rejects: row.rechazos,
+      process_kg: row.kgProceso,
+      process_yield: row.rendimiento,
+    }))
 
-  const workLogRows = payload.cuadrilla.map((row) => ({
-    organization_id: organizationId,
-    employee_id: row.empleadoId,
-    date: payload.fecha,
-    ranch_id: payload.ranchoId,
-    activity: payload.actividad,
-    pay_type: 'por_unidad',
-    units: row.unidades,
-    rate_used: tarifa,
-    amount: row.unidades * tarifa,
-    notes: payload.notes?.trim() || null,
-  }))
-
-  const { data: workLogs, error: workLogsError } = await supabase
-    .from('work_logs')
-    .insert(workLogRows)
-    .select('id, employee_id')
-
-  if (workLogsError) throw new Error(workLogsError.message)
-
-  const { error: crewsError } = await supabase.from('harvest_crews').insert(crewRows)
-  if (crewsError) throw new Error(crewsError.message)
-
-  const harvestWorkLogsRows = (workLogs ?? []).map((item) => ({
-    organization_id: organizationId,
-    harvest_id: createdHarvest.id,
-    work_log_id: item.id,
-  }))
-
-  if (harvestWorkLogsRows.length > 0) {
-    const { error: linksError } = await supabase.from('harvest_work_logs').insert(harvestWorkLogsRows)
-    if (linksError) throw new Error(linksError.message)
+    const { error: detailError } = await supabase.from('harvest_entries').insert(detailRows)
+    if (detailError) throw new Error(detailError.message)
   }
 
   return createdHarvest.id
 }
 
 export async function updateCosecha(payload: UpdateCosechaPayload) {
-  const { data: current, error: currentError } = await supabase
-    .from('harvests')
-    .select('total_paid')
-    .eq('id', payload.id)
-    .single<{ total_paid: number }>()
-
-  if (currentError || !current) throw new Error(currentError?.message || 'No se pudo obtener la cosecha actual.')
-
-  const unitCost = payload.cantidadTotal > 0 ? Number(current.total_paid) / payload.cantidadTotal : 0
+  const { organizationId } = await getCurrentUserAndOrganization()
+  const { harvest, resumen } = buildHarvestPayload(organizationId, payload)
 
   const { error } = await supabase
     .from('harvests')
-    .update({
-      date: payload.fecha,
-      unit: payload.unidad,
-      total_quantity: payload.cantidadTotal,
-      activity: payload.actividad,
-      unit_cost: unitCost,
-      notes: payload.notes?.trim() || null,
-    })
+    .update(harvest)
+    .eq('organization_id', organizationId)
     .eq('id', payload.id)
 
   if (error) throw new Error(error.message)
-}
 
-export async function listHarvestEmployees() {
-  const { data, error } = await supabase
-    .from('employees')
-    .select('id, full_name')
-    .eq('is_active', true)
-    .order('full_name', { ascending: true })
-
-  if (error) throw new Error(error.message)
-
-  return ((data ?? []) as Array<{ id: string; full_name: string | null }>).map((item) => ({
-    id: item.id,
-    nombreCompleto: item.full_name ?? 'Empleado',
-  }))
-}
-
-export async function listHarvestActivities() {
-  const { organizationId } = await getCurrentUserAndOrganization()
-  const { data, error } = await supabase
-    .from('activity_rates')
-    .select('activity, unit')
+  const { error: deleteError } = await supabase
+    .from('harvest_entries')
+    .delete()
     .eq('organization_id', organizationId)
-    .order('activity', { ascending: true })
+    .eq('harvest_id', payload.id)
 
-  if (error) throw new Error(error.message)
+  if (deleteError) throw new Error(deleteError.message)
 
-  const map = new Map<string, HarvestActivity>()
-  ;((data ?? []) as Array<{ activity: string; unit: string }>).forEach((item) => {
-    if (!map.has(item.activity)) map.set(item.activity, { actividad: item.activity, unidad: item.unit })
-  })
+  if (resumen.detalle.length > 0) {
+    const detailRows = resumen.detalle.map((row) => ({
+      organization_id: organizationId,
+      harvest_id: payload.id,
+      package: row.empaque,
+      boxes: row.cajas,
+      rejects: row.rechazos,
+      process_kg: row.kgProceso,
+      process_yield: row.rendimiento,
+    }))
 
-  return Array.from(map.values())
+    const { error: detailError } = await supabase.from('harvest_entries').insert(detailRows)
+    if (detailError) throw new Error(detailError.message)
+  }
 }
 
 export function useCosechasStore() {
