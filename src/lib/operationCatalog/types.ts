@@ -53,6 +53,7 @@ export type Crop = {
 
 export type Season = {
   id: string
+  operationId?: string
   name: string
   description?: string
   startDate?: string
