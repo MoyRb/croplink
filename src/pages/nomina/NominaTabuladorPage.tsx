@@ -110,10 +110,6 @@ export function NominaTabuladorPage() {
           <p className="text-sm text-gray-500">Cargando tabulador...</p>
         ) : (
           <>
-            <div className="mb-4 rounded-2xl border border-[#E5E7EB] bg-[#F5F5F5] p-4 text-sm text-gray-600">
-              Unidades activas para nuevas capturas: {UNIDADES.map((unidad) => getUnidadLabel(unidad)).join(', ')}.
-              Las unidades históricas planta y ha siguen visibles en registros viejos, pero ya no se ofrecen en este flujo.
-            </div>
             <Table>
               <thead>
                 <tr>
