@@ -5,8 +5,9 @@ export type PayScheme = 'DIARIO' | 'POR_TAREA' | 'POR_UNIDAD'
 export type PeriodoNominaStatus = 'Borrador' | 'Calculado' | 'Pagado'
 export type MetodoPago = 'Efectivo' | 'Transferencia'
 export type WorkLogStatus = 'OPEN' | 'PAID'
-export type PaymentType = 'PERIODO' | 'MANUAL'
-export type TasaUnidad = 'dia' | 'caja' | 'kg' | 'planta' | 'surco' | 'ha'
+export type PaymentType = 'PERIODO' | 'MANUAL' | 'REGISTROS'
+export type TasaUnidad = 'dia' | 'caja' | 'kg' | 'tunel' | 'surco' | 'hr extra' | 'tambo' | 'metro lineal' | 'planta' | 'ha'
+export type TasaUnidadActiva = Exclude<TasaUnidad, 'planta' | 'ha'>
 
 export type TarifaActividad = {
   id: string
@@ -68,6 +69,8 @@ export type WorkLog = {
   ranchId?: string
   activity: string
   payType: PayScheme
+  paymentUnit?: TasaUnidad
+  quantity?: number
   units?: number
   rateUsed: number
   amount: number
@@ -93,6 +96,40 @@ export type Payment = {
 }
 
 type ProfileOrgRow = { organization_id: string | null }
+
+const ACTIVE_TASA_UNIDADES: TasaUnidadActiva[] = ['dia', 'caja', 'kg', 'tunel', 'surco', 'hr extra', 'tambo', 'metro lineal']
+
+export const getActiveTasaUnidades = () => [...ACTIVE_TASA_UNIDADES]
+
+export const getUnidadLabel = (unidad?: TasaUnidad) => {
+  if (!unidad) return '—'
+  return unidad
+}
+
+export const getPaySchemeByUnidad = (unidad?: TasaUnidad): PayScheme => {
+  if (!unidad) return 'POR_UNIDAD'
+  if (unidad === 'dia') return 'DIARIO'
+  return 'POR_UNIDAD'
+}
+
+export const getWorkLogQuantity = (workLog: Pick<WorkLog, 'quantity' | 'units' | 'payType'>) => {
+  if (typeof workLog.quantity === 'number' && Number.isFinite(workLog.quantity)) {
+    return Math.max(workLog.quantity, 0)
+  }
+
+  if (typeof workLog.units === 'number' && Number.isFinite(workLog.units)) {
+    return Math.max(workLog.units, 0)
+  }
+
+  return workLog.payType === 'POR_UNIDAD' ? 0 : 1
+}
+
+const inferLegacyUnit = (payType: PayScheme, quantity: number): TasaUnidad | undefined => {
+  if (payType === 'DIARIO') return 'dia'
+  if (payType === 'POR_TAREA' && quantity > 0) return 'surco'
+  if (payType === 'POR_UNIDAD' && quantity > 0) return 'caja'
+  return undefined
+}
 
 const getCurrentOrganizationId = async () => {
   const { data: authData, error: authError } = await supabase.auth.getUser()
@@ -135,8 +172,17 @@ const toDbPeriodoStatus = (value: PeriodoNominaStatus) => {
   return 'draft'
 }
 
-const mapPaymentType = (value: string): PaymentType => (value === 'manual' ? 'MANUAL' : 'PERIODO')
-const toDbPaymentType = (value: PaymentType) => (value === 'MANUAL' ? 'manual' : 'period')
+const mapPaymentType = (value: string): PaymentType => {
+  if (value === 'manual') return 'MANUAL'
+  if (value === 'work_logs') return 'REGISTROS'
+  return 'PERIODO'
+}
+
+const toDbPaymentType = (value: PaymentType) => {
+  if (value === 'MANUAL') return 'manual'
+  if (value === 'REGISTROS') return 'work_logs'
+  return 'period'
+}
 
 export const calculatePagoTotals = (
   tipoPago: TipoPago,
@@ -159,13 +205,19 @@ export const getEmployeeRateByPayType = (employee: Empleado, payType: PayScheme)
   return employee.unitRate ?? 0
 }
 
-export const computeWorkLogAmount = (payType: PayScheme, rateUsed: number, units?: number) => {
-  if (payType === 'POR_UNIDAD') return Math.max(rateUsed * (Number.isFinite(units) ? Number(units) : 0), 0)
-  return Math.max(rateUsed, 0)
+export const computeWorkLogAmount = (quantity: number | undefined, rateUsed: number) => {
+  const safeQuantity = Number.isFinite(quantity) ? Math.max(Number(quantity), 0) : 0
+  return Math.max(rateUsed * safeQuantity, 0)
 }
 
 export async function getEmpleados() {
-  const { data, error } = await supabase.from('employees').select('*').order('created_at', { ascending: false })
+  const organizationId = await getCurrentOrganizationId()
+  const { data, error } = await supabase
+    .from('employees')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+
   if (error) throw new Error(error.message)
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -207,6 +259,7 @@ export async function addEmpleado(data: Omit<Empleado, 'id'>) {
 }
 
 export async function updateEmpleado(empleado: Empleado) {
+  const organizationId = await getCurrentOrganizationId()
   const { error } = await supabase
     .from('employees')
     .update({
@@ -223,6 +276,8 @@ export async function updateEmpleado(empleado: Empleado) {
       nss: empleado.nss?.trim() || null,
     })
     .eq('id', empleado.id)
+    .eq('organization_id', organizationId)
+
   if (error) throw new Error(error.message)
   return getEmpleados()
 }
@@ -236,7 +291,13 @@ export async function toggleEmpleadoActivo(id: string) {
 }
 
 export async function getTarifasActividad() {
-  const { data, error } = await supabase.from('activity_rates').select('*').order('created_at', { ascending: false })
+  const organizationId = await getCurrentOrganizationId()
+  const { data, error } = await supabase
+    .from('activity_rates')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+
   if (error) throw new Error(error.message)
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -266,6 +327,7 @@ export async function addTarifaActividad(data: Omit<TarifaActividad, 'id' | 'cre
 }
 
 export async function updateTarifaActividad(tarifa: TarifaActividad) {
+  const organizationId = await getCurrentOrganizationId()
   const { error } = await supabase
     .from('activity_rates')
     .update({
@@ -277,34 +339,43 @@ export async function updateTarifaActividad(tarifa: TarifaActividad) {
       season_id: tarifa.temporada ?? null,
     })
     .eq('id', tarifa.id)
+    .eq('organization_id', organizationId)
   if (error) throw new Error(error.message)
   return getTarifasActividad()
 }
 
 export async function deleteTarifaActividad(id: string) {
-  const { error } = await supabase.from('activity_rates').delete().eq('id', id)
+  const organizationId = await getCurrentOrganizationId()
+  const { error } = await supabase.from('activity_rates').delete().eq('id', id).eq('organization_id', organizationId)
   if (error) throw new Error(error.message)
   return getTarifasActividad()
 }
 
-export async function resolveTarifaActividad(params: { actividad: string; rancho?: string; cultivo?: string; temporada?: string }) {
+export async function resolveTarifaActividad(params: { actividad: string; unidad?: TasaUnidad; rancho?: string; cultivo?: string; temporada?: string }) {
   const normalizedActivity = params.actividad.trim().toLowerCase()
   if (!normalizedActivity) return null
   const tarifas = await getTarifasActividad()
   const matches = tarifas.filter((tarifa) => {
     if (tarifa.actividad.trim().toLowerCase() !== normalizedActivity) return false
+    if (params.unidad && tarifa.unidad !== params.unidad) return false
     if (tarifa.rancho && tarifa.rancho !== params.rancho) return false
     if (tarifa.cultivo && tarifa.cultivo !== params.cultivo) return false
     if (tarifa.temporada && tarifa.temporada !== params.temporada) return false
     return true
   })
   if (!matches.length) return null
-  const getScore = (tarifa: TarifaActividad) => (tarifa.rancho ? 4 : 0) + (tarifa.cultivo ? 2 : 0) + (tarifa.temporada ? 1 : 0)
+  const getScore = (tarifa: TarifaActividad) => (tarifa.rancho ? 8 : 0) + (tarifa.cultivo ? 4 : 0) + (tarifa.temporada ? 2 : 0) + (params.unidad && tarifa.unidad === params.unidad ? 1 : 0)
   return [...matches].sort((a, b) => getScore(b) - getScore(a))[0]
 }
 
 export async function getPeriodos() {
-  const { data, error } = await supabase.from('payroll_periods').select('*').order('created_at', { ascending: false })
+  const organizationId = await getCurrentOrganizationId()
+  const { data, error } = await supabase
+    .from('payroll_periods')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+
   if (error) throw new Error(error.message)
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -330,13 +401,20 @@ export async function addPeriodo(data: Omit<PeriodoNomina, 'id' | 'estatus' | 'c
 }
 
 export async function updatePeriodoStatus(id: string, estatus: PeriodoNominaStatus) {
-  const { error } = await supabase.from('payroll_periods').update({ status: toDbPeriodoStatus(estatus) }).eq('id', id)
+  const organizationId = await getCurrentOrganizationId()
+  const { error } = await supabase.from('payroll_periods').update({ status: toDbPeriodoStatus(estatus) }).eq('id', id).eq('organization_id', organizationId)
   if (error) throw new Error(error.message)
   return getPeriodos()
 }
 
 export async function getPagosByPeriodo(periodoId: string) {
-  const { data, error } = await supabase.from('payroll_entries').select('*').eq('payroll_period_id', periodoId)
+  const organizationId = await getCurrentOrganizationId()
+  const { data, error } = await supabase
+    .from('payroll_entries')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .eq('payroll_period_id', periodoId)
+
   if (error) throw new Error(error.message)
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -378,28 +456,42 @@ export async function upsertPago(pago: RegistroPago) {
 }
 
 export async function getWorkLogs() {
-  const { data, error } = await supabase.from('work_logs').select('*').order('created_at', { ascending: false })
+  const organizationId = await getCurrentOrganizationId()
+  const { data, error } = await supabase
+    .from('work_logs')
+    .select('*')
+    .eq('organization_id', organizationId)
+    .order('created_at', { ascending: false })
+
   if (error) throw new Error(error.message)
-  return (data ?? []).map((row) => ({
-    id: row.id,
-    date: row.date,
-    employeeId: row.employee_id,
-    ranchId: row.ranch_id ?? undefined,
-    activity: row.activity,
-    payType: mapPayScheme(row.pay_type),
-    units: row.units ? Number(row.units) : undefined,
-    rateUsed: Number(row.rate_used),
-    amount: Number(row.amount),
-    notes: row.notes ?? undefined,
-    status: row.status === 'paid' ? 'PAID' : 'OPEN',
-    paymentId: row.payment_id ?? undefined,
-    createdAt: row.created_at,
-  })) as WorkLog[]
+  return (data ?? []).map((row) => {
+    const payType = mapPayScheme(row.pay_type)
+    const quantity = row.units != null ? Number(row.units) : undefined
+
+    return {
+      id: row.id,
+      date: row.date,
+      employeeId: row.employee_id,
+      ranchId: row.ranch_id ?? undefined,
+      activity: row.activity,
+      payType,
+      paymentUnit: (row.unit as TasaUnidad | null) ?? inferLegacyUnit(payType, quantity ?? 0),
+      quantity,
+      units: quantity,
+      rateUsed: Number(row.rate_used),
+      amount: Number(row.amount),
+      notes: row.notes ?? undefined,
+      status: row.status === 'paid' ? 'PAID' : 'OPEN',
+      paymentId: row.payment_id ?? undefined,
+      createdAt: row.created_at,
+    }
+  }) as WorkLog[]
 }
 
 export async function addWorkLog(data: WorkLogDraft) {
   const organizationId = await getCurrentOrganizationId()
-  const amount = computeWorkLogAmount(data.payType, data.rateUsed, data.units)
+  const quantity = getWorkLogQuantity(data)
+  const amount = computeWorkLogAmount(quantity, data.rateUsed)
   const { error } = await supabase.from('work_logs').insert({
     organization_id: organizationId,
     employee_id: data.employeeId,
@@ -407,7 +499,8 @@ export async function addWorkLog(data: WorkLogDraft) {
     ranch_id: data.ranchId ?? null,
     activity: data.activity,
     pay_type: toDbPayScheme(data.payType),
-    units: data.payType === 'POR_UNIDAD' ? data.units ?? 0 : null,
+    unit: data.paymentUnit ?? null,
+    units: quantity,
     rate_used: data.rateUsed,
     amount,
     status: 'open',
@@ -418,7 +511,9 @@ export async function addWorkLog(data: WorkLogDraft) {
 }
 
 export async function updateWorkLog(workLog: WorkLog) {
-  const amount = computeWorkLogAmount(workLog.payType, workLog.rateUsed, workLog.units)
+  const organizationId = await getCurrentOrganizationId()
+  const quantity = getWorkLogQuantity(workLog)
+  const amount = computeWorkLogAmount(quantity, workLog.rateUsed)
   const { error } = await supabase
     .from('work_logs')
     .update({
@@ -427,27 +522,33 @@ export async function updateWorkLog(workLog: WorkLog) {
       ranch_id: workLog.ranchId ?? null,
       activity: workLog.activity,
       pay_type: toDbPayScheme(workLog.payType),
-      units: workLog.payType === 'POR_UNIDAD' ? workLog.units ?? 0 : null,
+      unit: workLog.paymentUnit ?? null,
+      units: quantity,
       rate_used: workLog.rateUsed,
       amount,
       notes: workLog.notes ?? null,
     })
     .eq('id', workLog.id)
+    .eq('organization_id', organizationId)
   if (error) throw new Error(error.message)
   return getWorkLogs()
 }
 
 export async function deleteWorkLog(id: string) {
-  const { error } = await supabase.from('work_logs').delete().eq('id', id)
+  const organizationId = await getCurrentOrganizationId()
+  const { error } = await supabase.from('work_logs').delete().eq('id', id).eq('organization_id', organizationId)
   if (error) throw new Error(error.message)
   return getWorkLogs()
 }
 
 export async function getPayments() {
+  const organizationId = await getCurrentOrganizationId()
   const { data, error } = await supabase
     .from('payments')
     .select('id, type, date, employee_id, start_date, end_date, amount, notes, created_at, payment_work_logs(work_log_id)')
+    .eq('organization_id', organizationId)
     .order('created_at', { ascending: false })
+
   if (error) throw new Error(error.message)
   return (data ?? []).map((row) => ({
     id: row.id,
@@ -464,20 +565,49 @@ export async function getPayments() {
 }
 
 export async function createPeriodPayment(payload: { date: string; employeeId: string; startDate: string; endDate: string; note?: string }) {
-  const organizationId = await getCurrentOrganizationId()
   const allLogs = await getWorkLogs()
   const eligibleLogs = allLogs.filter((log) => log.employeeId === payload.employeeId && log.status === 'OPEN' && log.date >= payload.startDate && log.date <= payload.endDate)
+  return createWorkLogPayment({
+    date: payload.date,
+    employeeId: payload.employeeId,
+    workLogIds: eligibleLogs.map((log) => log.id),
+    startDate: payload.startDate,
+    endDate: payload.endDate,
+    note: payload.note,
+    fallbackType: 'PERIODO',
+  })
+}
+
+export async function createWorkLogPayment(payload: { date: string; employeeId?: string; workLogIds: string[]; startDate?: string; endDate?: string; note?: string; fallbackType?: Extract<PaymentType, 'PERIODO' | 'REGISTROS'> }) {
+  const organizationId = await getCurrentOrganizationId()
+  const allLogs = await getWorkLogs()
+  const eligibleLogs = allLogs.filter((log) => payload.workLogIds.includes(log.id) && log.status === 'OPEN')
+
+  if (!eligibleLogs.length) {
+    throw new Error('Selecciona al menos un registro abierto para generar el pago.')
+  }
+
+  const employeeIds = new Set(eligibleLogs.map((log) => log.employeeId))
+  if (employeeIds.size > 1) {
+    throw new Error('Todos los registros seleccionados deben pertenecer al mismo empleado.')
+  }
+
+  const employeeId = payload.employeeId ?? eligibleLogs[0]?.employeeId
+  if (!employeeId) throw new Error('No se pudo resolver el empleado para este pago.')
+
+  const sortedDates = [...eligibleLogs].map((log) => log.date).sort((a, b) => a.localeCompare(b))
   const amount = eligibleLogs.reduce((sum, log) => sum + log.amount, 0)
+  const paymentType = payload.fallbackType ?? 'REGISTROS'
 
   const { data: paymentData, error: paymentError } = await supabase
     .from('payments')
     .insert({
       organization_id: organizationId,
-      employee_id: payload.employeeId,
-      type: toDbPaymentType('PERIODO'),
+      employee_id: employeeId,
+      type: toDbPaymentType(paymentType),
       date: payload.date,
-      start_date: payload.startDate,
-      end_date: payload.endDate,
+      start_date: payload.startDate ?? sortedDates[0],
+      end_date: payload.endDate ?? sortedDates.at(-1),
       amount,
       notes: payload.note ?? null,
     })
@@ -486,17 +616,16 @@ export async function createPeriodPayment(payload: { date: string; employeeId: s
 
   if (paymentError || !paymentData) throw new Error(paymentError?.message || 'No se pudo crear el pago.')
 
-  if (eligibleLogs.length > 0) {
-    const paymentLinks = eligibleLogs.map((log) => ({ organization_id: organizationId, payment_id: paymentData.id, work_log_id: log.id }))
-    const { error: linksError } = await supabase.from('payment_work_logs').insert(paymentLinks)
-    if (linksError) throw new Error(linksError.message)
+  const paymentLinks = eligibleLogs.map((log) => ({ organization_id: organizationId, payment_id: paymentData.id, work_log_id: log.id }))
+  const { error: linksError } = await supabase.from('payment_work_logs').insert(paymentLinks)
+  if (linksError) throw new Error(linksError.message)
 
-    const { error: logsError } = await supabase
-      .from('work_logs')
-      .update({ status: 'paid', payment_id: paymentData.id })
-      .in('id', eligibleLogs.map((log) => log.id))
-    if (logsError) throw new Error(logsError.message)
-  }
+  const { error: logsError } = await supabase
+    .from('work_logs')
+    .update({ status: 'paid', payment_id: paymentData.id })
+    .eq('organization_id', organizationId)
+    .in('id', eligibleLogs.map((log) => log.id))
+  if (logsError) throw new Error(logsError.message)
 
   return { payments: await getPayments(), workLogs: await getWorkLogs() }
 }
